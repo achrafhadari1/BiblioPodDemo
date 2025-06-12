@@ -77,10 +77,8 @@ This project is intended for educational and non-commercial use only. Do not upl
 
 📬 Contact
 
-Achraf Hadari
 📧 achrafhadari0@gmail.com
-🌐 LinkedIn (optional)
-🧠 A Final Note
+
 
 BiblioPod isn't just a bookshelf. It's a digital reading sanctuary.
 Because your stories deserve a beautiful home.

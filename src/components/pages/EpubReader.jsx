@@ -69,6 +69,7 @@ function EpubReader() {
   // Touch/swipe state
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
+  const touchStartRef = useRef(null);
 
   // Minimum swipe distance (in px) - reduced for better mobile experience
   const minSwipeDistance = 30;
@@ -116,97 +117,178 @@ function EpubReader() {
 
   const onTouchMove = useCallback(
     (e) => {
-      setTouchEnd(e.targetTouches[0].clientX);
+      const currentX = e.targetTouches[0].clientX;
+      setTouchEnd(currentX);
+      console.log("[SWIPE] Touch move detected at X:", currentX);
       // Prevent default to avoid scrolling during swipe
-      if (
-        touchStart &&
-        Math.abs(e.targetTouches[0].clientX - touchStart) > 10
-      ) {
+      if (touchStart && Math.abs(currentX - touchStart) > 10) {
         e.preventDefault();
       }
     },
     [touchStart]
   );
 
-  const onTouchEnd = useCallback(() => {
-    if (!touchStart || !touchEnd) {
+  const onTouchEnd = useCallback(
+    (e) => {
+      // Try to get end position from changedTouches if touchEnd state is null
+      let endX = touchEnd;
+      if (!endX && e.changedTouches && e.changedTouches[0]) {
+        endX = e.changedTouches[0].clientX;
+        console.log("[SWIPE] Got end position from changedTouches:", endX);
+      }
+
+      if (!touchStart || !endX) {
+        setTouchDebug(
+          `Touch End: Missing values - start: ${touchStart}, end: ${endX}`
+        );
+        console.log("[SWIPE] Touch end without start/end values", {
+          touchStart,
+          touchEnd: endX,
+        });
+        // Reset touch values
+        setTouchStart(null);
+        setTouchEnd(null);
+        return;
+      }
+
+      const distance = touchStart - endX;
+      const isLeftSwipe = distance > minSwipeDistance;
+      const isRightSwipe = distance < -minSwipeDistance;
+
       setTouchDebug(
-        `Touch End: Missing values - start: ${touchStart}, end: ${touchEnd}`
+        `Touch End: distance=${distance}, left=${isLeftSwipe}, right=${isRightSwipe}`
       );
-      console.log("[SWIPE] Touch end without start/end values", {
+
+      console.log("[SWIPE] Touch end detected", {
         touchStart,
-        touchEnd,
+        touchEnd: endX,
+        distance,
+        minSwipeDistance,
+        isLeftSwipe,
+        isRightSwipe,
+        hasRendition: !!rendition,
       });
-      return;
-    }
 
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
+      if (isLeftSwipe && rendition) {
+        console.log("[SWIPE] Left swipe detected - going to next page");
+        // Show visual feedback
+        setSwipeDirection("left");
+        setTimeout(() => setSwipeDirection(null), 300);
 
-    setTouchDebug(
-      `Touch End: distance=${distance}, left=${isLeftSwipe}, right=${isRightSwipe}`
-    );
-
-    console.log("[SWIPE] Touch end detected", {
-      touchStart,
-      touchEnd,
-      distance,
-      minSwipeDistance,
-      isLeftSwipe,
-      isRightSwipe,
-      hasRendition: !!rendition,
-    });
-
-    if (isLeftSwipe && rendition) {
-      console.log("[SWIPE] Left swipe detected - going to next page");
-      // Show visual feedback
-      setSwipeDirection("left");
-      setTimeout(() => setSwipeDirection(null), 300);
-
-      // Add haptic feedback for swipe
-      if (navigator.vibrate) {
-        navigator.vibrate(50); // Haptic feedback on supported devices
+        // Add haptic feedback for swipe
+        if (navigator.vibrate) {
+          navigator.vibrate(50); // Haptic feedback on supported devices
+        }
+        nextBtn(); // Swipe left = next page
       }
-      nextBtn(); // Swipe left = next page
-    }
-    if (isRightSwipe && rendition) {
-      console.log("[SWIPE] Right swipe detected - going to previous page");
-      // Show visual feedback
-      setSwipeDirection("right");
-      setTimeout(() => setSwipeDirection(null), 300);
+      if (isRightSwipe && rendition) {
+        console.log("[SWIPE] Right swipe detected - going to previous page");
+        // Show visual feedback
+        setSwipeDirection("right");
+        setTimeout(() => setSwipeDirection(null), 300);
 
-      // Add haptic feedback for swipe
-      if (navigator.vibrate) {
-        navigator.vibrate(50); // Haptic feedback on supported devices
+        // Add haptic feedback for swipe
+        if (navigator.vibrate) {
+          navigator.vibrate(50); // Haptic feedback on supported devices
+        }
+        backBtn(); // Swipe right = previous page
       }
-      backBtn(); // Swipe right = previous page
-    }
 
-    // Reset touch values
-    setTouchStart(null);
-    setTouchEnd(null);
-  }, [touchStart, touchEnd, minSwipeDistance, rendition, nextBtn, backBtn]);
+      // Reset touch values
+      setTouchStart(null);
+      setTouchEnd(null);
+    },
+    [touchStart, touchEnd, minSwipeDistance, rendition, nextBtn, backBtn]
+  );
 
-  // Attach touch event listeners to the viewer
+  // Attach touch event listeners to the viewer and iframe content
   useEffect(() => {
+    if (!book) return;
+
+    console.log("[SWIPE] Attaching touch event listeners");
+
+    // Add touch event listeners to the main container
+    const mainContainer = document.querySelector(".main-book-reader-container");
+    if (mainContainer) {
+      mainContainer.addEventListener("touchstart", onTouchStart, {
+        passive: false,
+      });
+      mainContainer.addEventListener("touchmove", onTouchMove, {
+        passive: false,
+      });
+      mainContainer.addEventListener("touchend", onTouchEnd, {
+        passive: false,
+      });
+    }
+
+    // Also try to add to the viewer
     const viewer = viewerRef.current || document.getElementById("viewer");
-    if (!viewer || !book) return;
+    if (viewer) {
+      viewer.addEventListener("touchstart", onTouchStart, { passive: false });
+      viewer.addEventListener("touchmove", onTouchMove, { passive: false });
+      viewer.addEventListener("touchend", onTouchEnd, { passive: false });
+    }
 
-    console.log("[SWIPE] Attaching touch event listeners to viewer");
+    // Try to add to any iframe content (epub.js often uses iframes)
+    const checkForIframe = () => {
+      const iframe = document.querySelector("#viewer iframe");
+      if (iframe && iframe.contentDocument) {
+        try {
+          const iframeDoc = iframe.contentDocument;
+          iframeDoc.addEventListener("touchstart", onTouchStart, {
+            passive: false,
+          });
+          iframeDoc.addEventListener("touchmove", onTouchMove, {
+            passive: false,
+          });
+          iframeDoc.addEventListener("touchend", onTouchEnd, {
+            passive: false,
+          });
+          console.log("[SWIPE] Added touch listeners to iframe content");
+        } catch (e) {
+          console.log(
+            "[SWIPE] Could not access iframe content (CORS):",
+            e.message
+          );
+        }
+      }
+    };
 
-    // Add touch event listeners with proper options
-    viewer.addEventListener("touchstart", onTouchStart, { passive: false });
-    viewer.addEventListener("touchmove", onTouchMove, { passive: false });
-    viewer.addEventListener("touchend", onTouchEnd, { passive: false });
+    // Check for iframe immediately and after a delay
+    checkForIframe();
+    const iframeTimer = setTimeout(checkForIframe, 1000);
+
+    // For mobile devices, also add document-level listeners as a fallback
+    if (isMobile) {
+      document.addEventListener("touchstart", onTouchStart, { passive: false });
+      document.addEventListener("touchmove", onTouchMove, { passive: false });
+      document.addEventListener("touchend", onTouchEnd, { passive: false });
+      console.log("[SWIPE] Added document-level touch listeners for mobile");
+    }
 
     return () => {
-      console.log("[SWIPE] Removing touch event listeners from viewer");
-      viewer.removeEventListener("touchstart", onTouchStart);
-      viewer.removeEventListener("touchmove", onTouchMove);
-      viewer.removeEventListener("touchend", onTouchEnd);
+      console.log("[SWIPE] Removing touch event listeners");
+      clearTimeout(iframeTimer);
+
+      if (mainContainer) {
+        mainContainer.removeEventListener("touchstart", onTouchStart);
+        mainContainer.removeEventListener("touchmove", onTouchMove);
+        mainContainer.removeEventListener("touchend", onTouchEnd);
+      }
+
+      if (viewer) {
+        viewer.removeEventListener("touchstart", onTouchStart);
+        viewer.removeEventListener("touchmove", onTouchMove);
+        viewer.removeEventListener("touchend", onTouchEnd);
+      }
+
+      if (isMobile) {
+        document.removeEventListener("touchstart", onTouchStart);
+        document.removeEventListener("touchmove", onTouchMove);
+        document.removeEventListener("touchend", onTouchEnd);
+      }
     };
-  }, [book, onTouchStart, onTouchMove, onTouchEnd]);
+  }, [book, isMobile, onTouchStart, onTouchMove, onTouchEnd]);
 
   // Load user preferences from IndexedDB
   useEffect(() => {
@@ -1174,9 +1256,6 @@ function EpubReader() {
       className={`overflow-y-hidden main-book-reader-container h-lvh ${
         isDarkTheme ? "dark" : "default"
       }`}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
     >
       <div
         className={`titlebar reader-controls ${

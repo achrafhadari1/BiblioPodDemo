@@ -1,12 +1,10 @@
-"use client";
-
 import "./globals.css";
-import { usePathname } from "next/navigation";
 import { AuthProvider } from "../context/AuthContext";
 import { Toaster } from "sonner";
 import { NewNav } from "../components/NewNav";
 import ShowcaseBanner from "../components/ShowcaseBanner";
 import { Inter, Playfair_Display } from "next/font/google";
+import ClientLayout from "./client-layout.js";
 
 const inter = Inter({
   display: "swap",
@@ -20,24 +18,97 @@ const playfair = Playfair_Display({
   variable: "--font-playfair",
 });
 
+export const metadata = {
+  title: {
+    default: "BiblioPod - Your Personal Digital Library & Reading Platform",
+    template: "%s | BiblioPod",
+  },
+  description:
+    "BiblioPod is a comprehensive digital library and reading platform. Upload ePub books, track reading progress, create collections, set reading challenges, and enjoy a privacy-first reading experience with local storage.",
+  keywords: [
+    "ebook reader",
+    "digital library",
+    "epub reader",
+    "reading tracker",
+    "book management",
+    "reading challenges",
+    "book collections",
+    "privacy-first",
+    "offline reading",
+    "book highlights",
+    "reading statistics",
+    "personal library",
+  ],
+  authors: [{ name: "BiblioPod Team" }],
+  creator: "BiblioPod",
+  publisher: "BiblioPod",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL(
+    "https://work-1-fecwncvcbyefqoit.prod-runtime.all-hands.dev"
+  ),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://work-1-fecwncvcbyefqoit.prod-runtime.all-hands.dev",
+    title: "BiblioPod - Your Personal Digital Library & Reading Platform",
+    description:
+      "Upload ePub books, track reading progress, create collections, and enjoy a privacy-first reading experience with local storage. No registration required.",
+    siteName: "BiblioPod",
+    images: [
+      {
+        url: "/logo-long.png",
+        width: 1200,
+        height: 630,
+        alt: "BiblioPod - Digital Library Platform",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BiblioPod - Your Personal Digital Library",
+    description:
+      "Privacy-first ebook reader with local storage, reading challenges, and comprehensive library management.",
+    images: ["/logo-long.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  verification: {
+    // Add verification codes when you have them
+    // google: 'your-google-verification-code',
+    // yandex: 'your-yandex-verification-code',
+    // yahoo: 'your-yahoo-verification-code',
+  },
+};
+
 export default function RootLayout({ children }) {
-  const pathname = usePathname();
-
-  // Hide nav for "/" and "/read"
-  const hideNav =
-    pathname === "/" ||
-    pathname === "/read" ||
-    pathname === "/login" ||
-    pathname === "/welcome" ||
-    pathname === "/signup";
-
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/small-logo_1.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#f97316" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
       <body className="font-sans">
         <AuthProvider>
-          <ShowcaseBanner />
-          {!hideNav && <NewNav />}
-          {children}
+          <ClientLayout>{children}</ClientLayout>
           <Toaster />
         </AuthProvider>
       </body>

@@ -1,15 +1,16 @@
-"use client";
+import HighlightsClient from "./highlights-client";
 
-import { Highlights } from "@/components/pages/Highlights";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { usePageTitle } from "@/hooks/usePageTitle";
+export const metadata = {
+  title: "Highlights - Your Reading Notes and Quotes",
+  description:
+    "View and manage all your book highlights and notes. Search through your saved quotes, organize your thoughts, and revisit important passages from your reading.",
+  openGraph: {
+    title: "Highlights - Your Reading Notes and Quotes | BiblioPod",
+    description:
+      "View and manage all your book highlights and notes. Search through your saved quotes and revisit important passages.",
+  },
+};
 
 export default function HighlightsPage() {
-  usePageTitle("Highlights");
-
-  return (
-    <ProtectedRoute>
-      <Highlights />
-    </ProtectedRoute>
-  );
+  return <HighlightsClient />;
 }

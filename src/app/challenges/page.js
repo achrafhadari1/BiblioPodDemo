@@ -1,15 +1,16 @@
-"use client";
+import ChallengesClient from "./challenges-client";
 
-import ChallengesPage from "@/components/pages/Challenges";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { usePageTitle } from "@/hooks/usePageTitle";
+export const metadata = {
+  title: "Reading Challenges - Set and Track Your Reading Goals",
+  description:
+    "Create custom reading challenges, set goals, and track your progress. Challenge yourself to read more books and achieve your reading objectives with BiblioPod.",
+  openGraph: {
+    title: "Reading Challenges - Set and Track Your Reading Goals | BiblioPod",
+    description:
+      "Create custom reading challenges, set goals, and track your progress. Challenge yourself to read more books.",
+  },
+};
 
 export default function Challenges() {
-  usePageTitle("Challenges");
-
-  return (
-    <ProtectedRoute>
-      <ChallengesPage />
-    </ProtectedRoute>
-  );
+  return <ChallengesClient />;
 }

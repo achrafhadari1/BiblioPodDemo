@@ -1,15 +1,16 @@
-"use client";
+import LibraryClient from "./library-client";
 
-import { HomePage } from "@/components/pages/HomePage";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { usePageTitle } from "@/hooks/usePageTitle";
+export const metadata = {
+  title: "Library - Your Digital Book Collection",
+  description:
+    "Browse and manage your personal digital library. Upload ePub books, organize your collection, and start reading with BiblioPod's advanced ebook reader.",
+  openGraph: {
+    title: "Library - Your Digital Book Collection | BiblioPod",
+    description:
+      "Browse and manage your personal digital library. Upload ePub books, organize your collection, and start reading.",
+  },
+};
 
 export default function LibraryPage() {
-  usePageTitle("Library");
-
-  return (
-    <ProtectedRoute>
-      <HomePage />
-    </ProtectedRoute>
-  );
+  return <LibraryClient />;
 }

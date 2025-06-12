@@ -105,8 +105,10 @@
 
 @media screen and (max-width: 768px) {
   .titlebar {
-    padding: 6px 8px;
-    min-height: 14px;
+    padding: 8px 12px;
+    min-height: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   /* Prevent text selection during swipes */
@@ -135,12 +137,30 @@
 
 @media screen and (max-width: 768px) {
   #title-controls {
-    font-size: 0.9em;
-    gap: 4px;
+    font-size: 1em;
+    gap: 8px;
+    flex-shrink: 0;
   }
   #metainfo {
-    font-size: 0.8em;
-    padding-left: 1em;
+    font-size: 0.85em;
+    padding-left: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  #book-title {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+  }
+  #chapter-title {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
   }
   #title-separator {
     display: none;

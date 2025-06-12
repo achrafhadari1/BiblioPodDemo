@@ -17,6 +17,17 @@ import { CircularProgress } from "@nextui-org/react";
 import TextSelectionCoordinates from "../Modals/TextSelectionCoordinates";
 import { EpubReaderSettings } from "../EpubReaderComponents/EpubReaderSettings";
 
+// Utility function to detect mobile devices
+const isMobileDevice = () => {
+  if (typeof window === "undefined") return false;
+  return (
+    window.innerWidth <= 768 ||
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    )
+  );
+};
+
 // Default reader settings
 const DEFAULT_SETTINGS = {
   fontSize:
@@ -51,6 +62,8 @@ function EpubReader() {
   const [locationsGenerated, setLocationsGenerated] = useState(false);
   const [isInitialNavigation, setIsInitialNavigation] = useState(false);
   const [isBookLoading, setIsBookLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [swipeDirection, setSwipeDirection] = useState(null);
 
   // Touch/swipe state
   const [touchStart, setTouchStart] = useState(null);
@@ -63,6 +76,20 @@ function EpubReader() {
   const titleBarTimerRef = useRef(null);
   const viewerRef = useRef(null);
   const pageCalculationTimeoutRef = useRef(null);
+
+  // Detect mobile device on mount and window resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(isMobileDevice());
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+    };
+  }, []);
 
   // Load user preferences from IndexedDB
   useEffect(() => {
@@ -450,13 +477,19 @@ function EpubReader() {
     };
   }, [rendition, bookData, book]);
 
-  // Touch/swipe handlers
+  // Touch/swipe handlers with improved feedback
   const onTouchStart = (e) => {
     setTouchEnd(null); // otherwise the swipe is fired even with usual touch events
     setTouchStart(e.targetTouches[0].clientX);
   };
 
-  const onTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX);
+  const onTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+    // Prevent default to avoid scrolling during swipe
+    if (Math.abs(e.targetTouches[0].clientX - touchStart) > 10) {
+      e.preventDefault();
+    }
+  };
 
   const onTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
@@ -465,9 +498,25 @@ function EpubReader() {
     const isRightSwipe = distance < -minSwipeDistance;
 
     if (isLeftSwipe && rendition) {
+      // Show visual feedback
+      setSwipeDirection("left");
+      setTimeout(() => setSwipeDirection(null), 300);
+
+      // Add haptic feedback for swipe
+      if (navigator.vibrate) {
+        navigator.vibrate(50); // Haptic feedback on supported devices
+      }
       nextBtn(); // Swipe left = next page
     }
     if (isRightSwipe && rendition) {
+      // Show visual feedback
+      setSwipeDirection("right");
+      setTimeout(() => setSwipeDirection(null), 300);
+
+      // Add haptic feedback for swipe
+      if (navigator.vibrate) {
+        navigator.vibrate(50); // Haptic feedback on supported devices
+      }
       backBtn(); // Swipe right = previous page
     }
   };
@@ -1128,35 +1177,72 @@ function EpubReader() {
           onTouchEnd={onTouchEnd}
         />
 
-        <button
-          className={
-            !book
-              ? "hidden"
-              : `prev reset-btn nav-button ${isDarkTheme ? "light-button" : ""}`
-          }
-          onClick={backBtn}
-          aria-label="Previous page"
-        >
-          <GrPrevious />
-        </button>
-        <button
-          className={
-            !book
-              ? "hidden"
-              : `next reset-btn nav-button ${isDarkTheme ? "light-button" : ""}`
-          }
-          onClick={nextBtn}
-          aria-label="Next page"
-        >
-          <GrNext />
-        </button>
+        {/* Swipe feedback indicator for mobile */}
+        {isMobile && swipeDirection && (
+          <div
+            className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
+                       bg-black bg-opacity-70 text-white px-4 py-2 rounded-full 
+                       flex items-center gap-2 z-50 animate-pulse`}
+          >
+            {swipeDirection === "left" ? (
+              <>
+                <GrNext className="text-lg" />
+                <span>Next</span>
+              </>
+            ) : (
+              <>
+                <GrPrevious className="text-lg" />
+                <span>Previous</span>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Navigation buttons - hidden on mobile devices since swipe is available */}
+        {!isMobile && (
+          <>
+            <button
+              className={
+                !book
+                  ? "hidden"
+                  : `prev reset-btn nav-button ${
+                      isDarkTheme ? "light-button" : ""
+                    }`
+              }
+              onClick={backBtn}
+              aria-label="Previous page"
+            >
+              <GrPrevious />
+            </button>
+            <button
+              className={
+                !book
+                  ? "hidden"
+                  : `next reset-btn nav-button ${
+                      isDarkTheme ? "light-button" : ""
+                    }`
+              }
+              onClick={nextBtn}
+              aria-label="Next page"
+            >
+              <GrNext />
+            </button>
+          </>
+        )}
       </div>
       <div
         className={`absolute bottom-0 left-3 transition-opacity duration-300 ${
           showTitleBar ? "" : "opacity-low"
         }`}
       >
-        {currentPage} of {totalPages}{" "}
+        <div className="flex flex-col items-start">
+          <span>
+            {currentPage} of {totalPages}
+          </span>
+          {isMobile && (
+            <span className="text-xs opacity-70 mt-1">Swipe to navigate</span>
+          )}
+        </div>
       </div>
     </div>
   );

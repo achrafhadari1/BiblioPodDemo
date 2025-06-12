@@ -2,7 +2,6 @@
 
 BiblioPod is a beautifully crafted web application that transforms your personal EPUB collection into a warm and insightful reading experience. Designed as an educational project, it blends aesthetic design with useful features to help you rediscover the joy of reading.
 
-![BiblioPod Screenshot](public/preview.png)
 
 > 🎓 **Note:** This is an academic project. The app uses `localStorage` for demo purposes. Please upload only legally owned EPUB files.
 

@@ -66,13 +66,15 @@ function EpubReader() {
   const [swipeDirection, setSwipeDirection] = useState(null);
   const [touchDebug, setTouchDebug] = useState("");
 
-  // Touch/swipe state
-  const [touchStart, setTouchStart] = useState(null);
-  const [touchEnd, setTouchEnd] = useState(null);
+  // Touch/swipe state - using refs to avoid race conditions
   const touchStartRef = useRef(null);
+  const touchEndRef = useRef(null);
+  const isSwipingRef = useRef(false);
+  const lastSwipeTimeRef = useRef(0);
 
-  // Minimum swipe distance (in px) - reduced for better mobile experience
-  const minSwipeDistance = 30;
+  // Minimum swipe distance (in px) and debounce time
+  const minSwipeDistance = 50;
+  const swipeDebounceTime = 300; // ms
 
   // Refs
   const titleBarTimerRef = useRef(null);
@@ -93,65 +95,92 @@ function EpubReader() {
     };
   }, []);
 
+  // Helper function to reset swipe state
+  const resetSwipeState = useCallback(() => {
+    isSwipingRef.current = false;
+    touchStartRef.current = null;
+    touchEndRef.current = null;
+  }, []);
+
   // Navigation functions (defined first to avoid dependency issues)
   const nextBtn = useCallback(() => {
     if (!rendition) return;
+    resetSwipeState(); // Reset swipe state before navigation
     rendition.next();
     updatePageInfo();
-  }, [rendition]);
+  }, [rendition, resetSwipeState]);
 
   const backBtn = useCallback(() => {
     if (!rendition) return;
+    resetSwipeState(); // Reset swipe state before navigation
     rendition.prev();
     updatePageInfo();
-  }, [rendition]);
+  }, [rendition, resetSwipeState]);
 
-  // Touch/swipe handlers with improved feedback
+  // Touch/swipe handlers with improved debouncing and state management
   const onTouchStart = useCallback((e) => {
-    setTouchEnd(null); // otherwise the swipe is fired even with usual touch events
+    // Prevent multiple simultaneous swipes
+    if (isSwipingRef.current) {
+      e.preventDefault();
+      return;
+    }
+
     const startX = e.targetTouches[0].clientX;
-    setTouchStart(startX);
+    touchStartRef.current = startX;
+    touchEndRef.current = null;
+    isSwipingRef.current = true;
+
     setTouchDebug(`Touch Start: ${startX}`);
     console.log("[SWIPE] Touch start detected at X:", startX);
   }, []);
 
-  const onTouchMove = useCallback(
-    (e) => {
-      const currentX = e.targetTouches[0].clientX;
-      setTouchEnd(currentX);
-      console.log("[SWIPE] Touch move detected at X:", currentX);
-      // Prevent default to avoid scrolling during swipe
-      if (touchStart && Math.abs(currentX - touchStart) > 10) {
-        e.preventDefault();
-      }
-    },
-    [touchStart]
-  );
+  const onTouchMove = useCallback((e) => {
+    if (!touchStartRef.current || !isSwipingRef.current) return;
+
+    const currentX = e.targetTouches[0].clientX;
+    touchEndRef.current = currentX;
+
+    // Prevent default scrolling if this looks like a horizontal swipe
+    const distance = Math.abs(currentX - touchStartRef.current);
+    if (distance > 10) {
+      e.preventDefault();
+    }
+
+    console.log("[SWIPE] Touch move detected at X:", currentX);
+  }, []);
 
   const onTouchEnd = useCallback(
     (e) => {
-      // Try to get end position from changedTouches if touchEnd state is null
-      let endX = touchEnd;
-      if (!endX && e.changedTouches && e.changedTouches[0]) {
-        endX = e.changedTouches[0].clientX;
-        console.log("[SWIPE] Got end position from changedTouches:", endX);
-      }
-
-      if (!touchStart || !endX) {
-        setTouchDebug(
-          `Touch End: Missing values - start: ${touchStart}, end: ${endX}`
-        );
-        console.log("[SWIPE] Touch end without start/end values", {
-          touchStart,
-          touchEnd: endX,
-        });
-        // Reset touch values
-        setTouchStart(null);
-        setTouchEnd(null);
+      // Check debounce time to prevent rapid swipes
+      const now = Date.now();
+      if (now - lastSwipeTimeRef.current < swipeDebounceTime) {
+        console.log("[SWIPE] Swipe debounced - too soon after last swipe");
+        isSwipingRef.current = false;
+        touchStartRef.current = null;
+        touchEndRef.current = null;
         return;
       }
 
-      const distance = touchStart - endX;
+      if (!touchStartRef.current || !isSwipingRef.current) {
+        console.log("[SWIPE] Touch end without valid start");
+        isSwipingRef.current = false;
+        return;
+      }
+
+      // Get end position from current ref or changedTouches
+      let endX = touchEndRef.current;
+      if (!endX && e.changedTouches && e.changedTouches[0]) {
+        endX = e.changedTouches[0].clientX;
+      }
+
+      if (!endX) {
+        console.log("[SWIPE] Touch end without valid end position");
+        isSwipingRef.current = false;
+        touchStartRef.current = null;
+        return;
+      }
+
+      const distance = touchStartRef.current - endX;
       const isLeftSwipe = distance > minSwipeDistance;
       const isRightSwipe = distance < -minSwipeDistance;
 
@@ -160,7 +189,7 @@ function EpubReader() {
       );
 
       console.log("[SWIPE] Touch end detected", {
-        touchStart,
+        touchStart: touchStartRef.current,
         touchEnd: endX,
         distance,
         minSwipeDistance,
@@ -169,67 +198,77 @@ function EpubReader() {
         hasRendition: !!rendition,
       });
 
-      if (isLeftSwipe && rendition) {
-        console.log("[SWIPE] Left swipe detected - going to next page");
-        // Show visual feedback
-        setSwipeDirection("left");
-        setTimeout(() => setSwipeDirection(null), 300);
+      // Only process swipe if it meets minimum distance and we have rendition
+      if ((isLeftSwipe || isRightSwipe) && rendition) {
+        lastSwipeTimeRef.current = now;
 
-        // Add haptic feedback for swipe
-        if (navigator.vibrate) {
-          navigator.vibrate(50); // Haptic feedback on supported devices
+        if (isLeftSwipe) {
+          console.log("[SWIPE] Left swipe detected - going to next page");
+          setSwipeDirection("left");
+          setTimeout(() => setSwipeDirection(null), 300);
+
+          if (navigator.vibrate) {
+            navigator.vibrate(50);
+          }
+          nextBtn();
+        } else if (isRightSwipe) {
+          console.log("[SWIPE] Right swipe detected - going to previous page");
+          setSwipeDirection("right");
+          setTimeout(() => setSwipeDirection(null), 300);
+
+          if (navigator.vibrate) {
+            navigator.vibrate(50);
+          }
+          backBtn();
         }
-        nextBtn(); // Swipe left = next page
-      }
-      if (isRightSwipe && rendition) {
-        console.log("[SWIPE] Right swipe detected - going to previous page");
-        // Show visual feedback
-        setSwipeDirection("right");
-        setTimeout(() => setSwipeDirection(null), 300);
-
-        // Add haptic feedback for swipe
-        if (navigator.vibrate) {
-          navigator.vibrate(50); // Haptic feedback on supported devices
-        }
-        backBtn(); // Swipe right = previous page
       }
 
-      // Reset touch values
-      setTouchStart(null);
-      setTouchEnd(null);
+      // Reset touch state
+      isSwipingRef.current = false;
+      touchStartRef.current = null;
+      touchEndRef.current = null;
     },
-    [touchStart, touchEnd, minSwipeDistance, rendition, nextBtn, backBtn]
+    [minSwipeDistance, rendition, nextBtn, backBtn, swipeDebounceTime]
   );
 
-  // Attach touch event listeners to the viewer and iframe content
+  // Attach touch event listeners - simplified to avoid duplicate events
   useEffect(() => {
-    if (!book) return;
+    if (!book || !isMobile) return;
 
-    console.log("[SWIPE] Attaching touch event listeners");
+    console.log("[SWIPE] Attaching touch event listeners for mobile");
 
-    // Add touch event listeners to the main container
-    const mainContainer = document.querySelector(".main-book-reader-container");
-    if (mainContainer) {
-      mainContainer.addEventListener("touchstart", onTouchStart, {
-        passive: false,
-      });
-      mainContainer.addEventListener("touchmove", onTouchMove, {
-        passive: false,
-      });
-      mainContainer.addEventListener("touchend", onTouchEnd, {
-        passive: false,
-      });
-    }
-
-    // Also try to add to the viewer
+    // Use a single target element to avoid duplicate events
+    // Priority: viewer > main container > document
+    let targetElement = null;
     const viewer = viewerRef.current || document.getElementById("viewer");
+    const mainContainer = document.querySelector(".main-book-reader-container");
+
     if (viewer) {
-      viewer.addEventListener("touchstart", onTouchStart, { passive: false });
-      viewer.addEventListener("touchmove", onTouchMove, { passive: false });
-      viewer.addEventListener("touchend", onTouchEnd, { passive: false });
+      targetElement = viewer;
+      console.log("[SWIPE] Using viewer as target element");
+    } else if (mainContainer) {
+      targetElement = mainContainer;
+      console.log("[SWIPE] Using main container as target element");
+    } else {
+      targetElement = document;
+      console.log("[SWIPE] Using document as target element");
     }
 
-    // Try to add to any iframe content (epub.js often uses iframes)
+    // Add event listeners with capture to ensure we get the events first
+    targetElement.addEventListener("touchstart", onTouchStart, {
+      passive: false,
+      capture: true,
+    });
+    targetElement.addEventListener("touchmove", onTouchMove, {
+      passive: false,
+      capture: true,
+    });
+    targetElement.addEventListener("touchend", onTouchEnd, {
+      passive: false,
+      capture: true,
+    });
+
+    // Try to add to iframe content as well (for epub.js)
     const checkForIframe = () => {
       const iframe = document.querySelector("#viewer iframe");
       if (iframe && iframe.contentDocument) {
@@ -254,41 +293,38 @@ function EpubReader() {
       }
     };
 
-    // Check for iframe immediately and after a delay
-    checkForIframe();
-    const iframeTimer = setTimeout(checkForIframe, 1000);
-
-    // For mobile devices, also add document-level listeners as a fallback
-    if (isMobile) {
-      document.addEventListener("touchstart", onTouchStart, { passive: false });
-      document.addEventListener("touchmove", onTouchMove, { passive: false });
-      document.addEventListener("touchend", onTouchEnd, { passive: false });
-      console.log("[SWIPE] Added document-level touch listeners for mobile");
-    }
+    // Check for iframe after a delay to allow epub.js to load
+    const iframeTimer = setTimeout(checkForIframe, 1500);
 
     return () => {
       console.log("[SWIPE] Removing touch event listeners");
       clearTimeout(iframeTimer);
 
-      if (mainContainer) {
-        mainContainer.removeEventListener("touchstart", onTouchStart);
-        mainContainer.removeEventListener("touchmove", onTouchMove);
-        mainContainer.removeEventListener("touchend", onTouchEnd);
+      if (targetElement) {
+        targetElement.removeEventListener("touchstart", onTouchStart, {
+          capture: true,
+        });
+        targetElement.removeEventListener("touchmove", onTouchMove, {
+          capture: true,
+        });
+        targetElement.removeEventListener("touchend", onTouchEnd, {
+          capture: true,
+        });
       }
 
-      if (viewer) {
-        viewer.removeEventListener("touchstart", onTouchStart);
-        viewer.removeEventListener("touchmove", onTouchMove);
-        viewer.removeEventListener("touchend", onTouchEnd);
-      }
-
-      if (isMobile) {
-        document.removeEventListener("touchstart", onTouchStart);
-        document.removeEventListener("touchmove", onTouchMove);
-        document.removeEventListener("touchend", onTouchEnd);
-      }
+      // Reset swipe state on cleanup
+      isSwipingRef.current = false;
+      touchStartRef.current = null;
+      touchEndRef.current = null;
     };
   }, [book, isMobile, onTouchStart, onTouchMove, onTouchEnd]);
+
+  // Cleanup swipe state on unmount
+  useEffect(() => {
+    return () => {
+      resetSwipeState();
+    };
+  }, [resetSwipeState]);
 
   // Load user preferences from IndexedDB
   useEffect(() => {

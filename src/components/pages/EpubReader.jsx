@@ -8,6 +8,7 @@ import "../style/bookdisplay.css";
 import ePub from "epubjs";
 import axios from "../../api/axios";
 import "../../index.css";
+import "../../styles/fonts.css";
 import { bookStorageDB } from "../../utils/bookStorageDB";
 import { AiOutlineFullscreen } from "react-icons/ai";
 import { GrNext, GrPrevious } from "react-icons/gr";
@@ -32,7 +33,7 @@ const isMobileDevice = () => {
 const DEFAULT_SETTINGS = {
   fontSize:
     typeof window !== "undefined" && window.innerWidth <= 768 ? "18px" : "28px",
-  fontFamily: "'Lora', serif",
+  fontFamily: "Lora",
   isDarkTheme: false,
 };
 
@@ -417,16 +418,31 @@ function EpubReader() {
     saveSettings();
   }, [isDarkTheme, fontSize, fontFamily]);
 
-  // Ensure font is loaded
+  // Font loading verification
   useEffect(() => {
-    if (!document.getElementById("lora-font")) {
-      const link = document.createElement("link");
-      link.id = "lora-font";
-      link.rel = "stylesheet";
-      link.href =
-        "https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap";
-      document.head.appendChild(link);
-    }
+    const checkFontLoading = async () => {
+      if (typeof document !== "undefined" && "fonts" in document) {
+        try {
+          // Check if our fonts are loaded
+          const fonts = [
+            "Alegreya",
+            "Lora",
+            "Atkinson",
+            "Bookerly",
+            "Literata",
+          ];
+          for (const font of fonts) {
+            const isLoaded = await document.fonts.check(`16px "${font}"`);
+            console.log(`[FONT] ${font} loaded:`, isLoaded);
+          }
+        } catch (error) {
+          console.warn("[FONT] Font loading check failed:", error);
+        }
+      }
+    };
+
+    // Check fonts after a short delay to allow CSS to load
+    setTimeout(checkFontLoading, 1000);
   }, []);
 
   // Fetch book data
@@ -873,28 +889,48 @@ function EpubReader() {
     }
   }, [bookData]);
 
+  // Get font family with proper fallbacks
+  const getFontWithFallback = (fontName) => {
+    switch (fontName) {
+      case "Alegreya":
+        return "'Alegreya', Georgia, serif";
+      case "Lora":
+        return "'Lora', Georgia, serif";
+      case "Atkinson":
+        return "'Atkinson', Arial, sans-serif";
+      case "Bookerly":
+        return "'Bookerly', Georgia, serif";
+      case "Literata":
+        return "'Literata', Georgia, serif";
+      default:
+        return "'Lora', Georgia, serif";
+    }
+  };
+
   // Apply font settings to all elements
   const applyFontSettings = () => {
     if (!rendition || !rendition.themes) return;
 
+    const fontWithFallback = getFontWithFallback(fontFamily);
+
     rendition.themes.default({
       body: {
-        "font-family": `${fontFamily} !important`,
+        "font-family": `${fontWithFallback} !important`,
       },
       p: {
-        "font-family": `${fontFamily} !important`,
+        "font-family": `${fontWithFallback} !important`,
       },
       div: {
-        "font-family": `${fontFamily} !important`,
+        "font-family": `${fontWithFallback} !important`,
       },
       span: {
-        "font-family": `${fontFamily} !important`,
+        "font-family": `${fontWithFallback} !important`,
       },
       "h1, h2, h3, h4, h5, h6": {
-        "font-family": `${fontFamily} !important`,
+        "font-family": `${fontWithFallback} !important`,
       },
       "*": {
-        "font-family": `${fontFamily} !important`,
+        "font-family": `${fontWithFallback} !important`,
       },
     });
   };
@@ -970,24 +1006,26 @@ function EpubReader() {
       console.log("[DEBUG] Rendition created successfully");
 
       // Apply global font styles before displaying content
+      const fontWithFallback = getFontWithFallback(fontFamily);
+
       newRendition.themes.default({
         body: {
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         p: {
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         div: {
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         span: {
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         "h1, h2, h3, h4, h5, h6": {
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         "*": {
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
       });
 
@@ -996,15 +1034,15 @@ function EpubReader() {
         body: {
           background: "black",
           color: "white",
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         "p, div, span, h1, h2, h3, h4, h5, h6, *": {
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         ".calibre": {
           background: "black",
           color: "white",
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
       });
 
@@ -1012,15 +1050,15 @@ function EpubReader() {
         body: {
           background: "white",
           color: "black",
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         "p, div, span, h1, h2, h3, h4, h5, h6, *": {
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
         ".calibre": {
           background: "white",
           color: "black",
-          "font-family": `${fontFamily} !important`,
+          "font-family": `${fontWithFallback} !important`,
         },
       });
 

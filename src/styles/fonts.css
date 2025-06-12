@@ -1,0 +1,66 @@
+/* Local Font Definitions for Epub Reader */
+
+@font-face {
+  font-family: "Alegreya";
+  src: url("/fonts/alegreya/Alegreya-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Lora";
+  src: url("/fonts/lora/Lora.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Atkinson";
+  src: url("/fonts/atkinson/Atkinson-Hyperlegible-Regular-102a.woff2")
+      format("woff2"),
+    url("/fonts/atkinson/Atkinson-Hyperlegible-Regular-102.woff") format("woff"),
+    url("/fonts/atkinson/Atkinson-Hyperlegible-Regular-102.ttf")
+      format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bookerly";
+  src: url("/fonts/bookerley/Bookerly.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Literata";
+  src: url("/fonts/literata/Literata-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Font classes for the settings UI */
+.font-alegreya {
+  font-family: "Alegreya", serif;
+}
+
+.font-lora {
+  font-family: "Lora", serif;
+}
+
+.font-atkinson {
+  font-family: "Atkinson", sans-serif;
+}
+
+.font-bookerly {
+  font-family: "Bookerly", serif;
+}
+
+.font-literata {
+  font-family: "Literata", serif;
+}

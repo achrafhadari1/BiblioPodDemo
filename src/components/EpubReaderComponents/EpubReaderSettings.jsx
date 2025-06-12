@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Drawer,
   DrawerClose,
@@ -12,10 +12,33 @@ import {
 import { Button } from "../ui/button";
 import { IoSettingsOutline } from "react-icons/io5";
 import { Slider } from "@nextui-org/react";
+import "../../styles/fonts.css";
 
-export const EpubReaderSettings = ({ rendition }) => {
+export const EpubReaderSettings = ({
+  rendition,
+  fontSize,
+  fontFamily,
+  updateFontSize,
+  updateFontFamily,
+}) => {
   const [fontSlider, setFontSlider] = useState(0.7);
-  const [activeFont, setActiveFont] = useState("Lora"); // Default active font
+
+  // Available local fonts
+  const availableFonts = [
+    { name: "Lora", displayName: "Lora", className: "font-lora" },
+    { name: "Alegreya", displayName: "Alegreya", className: "font-alegreya" },
+    { name: "Atkinson", displayName: "Atkinson", className: "font-atkinson" },
+    { name: "Bookerly", displayName: "Bookerly", className: "font-bookerly" },
+    { name: "Literata", displayName: "Literata", className: "font-literata" },
+  ];
+
+  // Sync font slider with current font size
+  useEffect(() => {
+    if (fontSize) {
+      const sizeValue = parseInt(fontSize) / 40; // Convert px to slider value
+      setFontSlider(Math.max(0.5, Math.min(1, sizeValue)));
+    }
+  }, [fontSize]);
 
   const redrawAnnotations = () => {
     if (rendition) {
@@ -30,16 +53,14 @@ export const EpubReaderSettings = ({ rendition }) => {
   // Handle the onChange event to update the slider value
   const handleSliderChange = (value) => {
     setFontSlider(value);
-    rendition.themes.fontSize(`${value * 40}px`);
+    const newSize = `${value * 40}px`;
+    updateFontSize(newSize);
     redrawAnnotations();
   };
 
   // Function to handle font selection
-  const handleFontSelect = (font) => {
-    setActiveFont(font);
-    // Apply font change to rendition
-
-    rendition.themes.override("font-family", font);
+  const handleFontSelect = (fontName) => {
+    updateFontFamily(fontName);
   };
 
   return (
@@ -68,40 +89,31 @@ export const EpubReaderSettings = ({ rendition }) => {
                 className="max-w-md"
               />
             </div>
-            <div className="fontContainer flex w-3/12 justify-evenly gap-8">
-              <div
-                className={`font ${
-                  activeFont === "Lora" ? "active" : ""
-                } text-center`}
-                onClick={() => handleFontSelect("Lora")}
-              >
-                <div className="font-bold font-1 h-12 m-auto w-12 items-center justify-center flex rounded-full border-2 border-black">
-                  Aa
+            <div className="fontContainer flex w-full justify-center gap-4 flex-wrap">
+              {availableFonts.map((font) => (
+                <div
+                  key={font.name}
+                  className={`font ${
+                    fontFamily === font.name ? "active" : ""
+                  } text-center cursor-pointer`}
+                  onClick={() => handleFontSelect(font.name)}
+                >
+                  <div
+                    className={`font-bold ${
+                      font.className
+                    } h-12 w-12 items-center justify-center flex rounded-full border-2 ${
+                      fontFamily === font.name
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-400"
+                    } hover:border-blue-400 transition-colors`}
+                  >
+                    Aa
+                  </div>
+                  <div className={`${font.className} text-sm mt-1`}>
+                    {font.displayName}
+                  </div>
                 </div>
-                <div className="font-1">Lora</div>
-              </div>
-              <div
-                className={`font ${
-                  activeFont === `"Karla", sans-serif` ? "active" : ""
-                } text-center`}
-                onClick={() => handleFontSelect(`"Karla", sans-serif`)}
-              >
-                <div className="font-bold font-2 h-12 m-auto w-12 items-center justify-center flex rounded-full border-2 border-black">
-                  Aa
-                </div>
-                <div className="font-2">Karla</div>
-              </div>
-              <div
-                className={`font ${
-                  activeFont === `"Zeyada", cursive` ? "active" : ""
-                } text-center`}
-                onClick={() => handleFontSelect(`"Zeyada", cursive`)}
-              >
-                <div className="font-bold font-3 h-12 m-auto w-12 items-center justify-center flex rounded-full border-2 border-black">
-                  Aa
-                </div>
-                <div className="font-3">Zeyada</div>
-              </div>
+              ))}
             </div>
           </div>
           {/* <DrawerFooter>

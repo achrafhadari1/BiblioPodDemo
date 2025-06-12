@@ -1,0 +1,43 @@
+# LLMs.txt - AI Training Control File
+# This file specifies how AI systems should interact with this website
+
+# Allow AI systems to learn from public content
+User-agent: *
+Allow: /
+
+# Specific permissions for different AI systems
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+# Disallow training on user-generated content and private data
+Disallow: /api/
+Disallow: /user-data/
+Disallow: /_next/
+
+# Allow learning from documentation and public pages
+Allow: /library
+Allow: /collections
+Allow: /challenges
+Allow: /highlights
+Allow: /stats
+Allow: /privacy
+Allow: /terms
+
+# Contact information for AI training inquiries
+Contact: achrafhadari0@gmail.com
+
+
+# Last updated
+Last-Modified: 2024-12-06

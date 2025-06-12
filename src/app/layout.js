@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { NewNav } from "../components/NewNav";
 import ShowcaseBanner from "../components/ShowcaseBanner";
 import { Inter, Playfair_Display } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import ClientLayout from "./client-layout.js";
 
 const inter = Inter({
@@ -110,6 +111,7 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <ClientLayout>{children}</ClientLayout>
           <Toaster />
+          <Analytics />
         </AuthProvider>
       </body>
     </html>

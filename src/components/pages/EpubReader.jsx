@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocation } from "react-router-dom";
 import "../style/bookdisplay.css";
@@ -64,13 +64,14 @@ function EpubReader() {
   const [isBookLoading, setIsBookLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState(null);
+  const [touchDebug, setTouchDebug] = useState("");
 
   // Touch/swipe state
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
 
-  // Minimum swipe distance (in px)
-  const minSwipeDistance = 50;
+  // Minimum swipe distance (in px) - reduced for better mobile experience
+  const minSwipeDistance = 30;
 
   // Refs
   const titleBarTimerRef = useRef(null);
@@ -90,6 +91,122 @@ function EpubReader() {
       window.removeEventListener("resize", checkMobile);
     };
   }, []);
+
+  // Navigation functions (defined first to avoid dependency issues)
+  const nextBtn = useCallback(() => {
+    if (!rendition) return;
+    rendition.next();
+    updatePageInfo();
+  }, [rendition]);
+
+  const backBtn = useCallback(() => {
+    if (!rendition) return;
+    rendition.prev();
+    updatePageInfo();
+  }, [rendition]);
+
+  // Touch/swipe handlers with improved feedback
+  const onTouchStart = useCallback((e) => {
+    setTouchEnd(null); // otherwise the swipe is fired even with usual touch events
+    const startX = e.targetTouches[0].clientX;
+    setTouchStart(startX);
+    setTouchDebug(`Touch Start: ${startX}`);
+    console.log("[SWIPE] Touch start detected at X:", startX);
+  }, []);
+
+  const onTouchMove = useCallback(
+    (e) => {
+      setTouchEnd(e.targetTouches[0].clientX);
+      // Prevent default to avoid scrolling during swipe
+      if (
+        touchStart &&
+        Math.abs(e.targetTouches[0].clientX - touchStart) > 10
+      ) {
+        e.preventDefault();
+      }
+    },
+    [touchStart]
+  );
+
+  const onTouchEnd = useCallback(() => {
+    if (!touchStart || !touchEnd) {
+      setTouchDebug(
+        `Touch End: Missing values - start: ${touchStart}, end: ${touchEnd}`
+      );
+      console.log("[SWIPE] Touch end without start/end values", {
+        touchStart,
+        touchEnd,
+      });
+      return;
+    }
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    setTouchDebug(
+      `Touch End: distance=${distance}, left=${isLeftSwipe}, right=${isRightSwipe}`
+    );
+
+    console.log("[SWIPE] Touch end detected", {
+      touchStart,
+      touchEnd,
+      distance,
+      minSwipeDistance,
+      isLeftSwipe,
+      isRightSwipe,
+      hasRendition: !!rendition,
+    });
+
+    if (isLeftSwipe && rendition) {
+      console.log("[SWIPE] Left swipe detected - going to next page");
+      // Show visual feedback
+      setSwipeDirection("left");
+      setTimeout(() => setSwipeDirection(null), 300);
+
+      // Add haptic feedback for swipe
+      if (navigator.vibrate) {
+        navigator.vibrate(50); // Haptic feedback on supported devices
+      }
+      nextBtn(); // Swipe left = next page
+    }
+    if (isRightSwipe && rendition) {
+      console.log("[SWIPE] Right swipe detected - going to previous page");
+      // Show visual feedback
+      setSwipeDirection("right");
+      setTimeout(() => setSwipeDirection(null), 300);
+
+      // Add haptic feedback for swipe
+      if (navigator.vibrate) {
+        navigator.vibrate(50); // Haptic feedback on supported devices
+      }
+      backBtn(); // Swipe right = previous page
+    }
+
+    // Reset touch values
+    setTouchStart(null);
+    setTouchEnd(null);
+  }, [touchStart, touchEnd, minSwipeDistance, rendition, nextBtn, backBtn]);
+
+  // Attach touch event listeners to the viewer
+  useEffect(() => {
+    const viewer = viewerRef.current || document.getElementById("viewer");
+    if (!viewer || !book) return;
+
+    console.log("[SWIPE] Attaching touch event listeners to viewer");
+
+    // Add touch event listeners with proper options
+    viewer.addEventListener("touchstart", onTouchStart, { passive: false });
+    viewer.addEventListener("touchmove", onTouchMove, { passive: false });
+    viewer.addEventListener("touchend", onTouchEnd, { passive: false });
+
+    return () => {
+      console.log("[SWIPE] Removing touch event listeners from viewer");
+      viewer.removeEventListener("touchstart", onTouchStart);
+      viewer.removeEventListener("touchmove", onTouchMove);
+      viewer.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [book, onTouchStart, onTouchMove, onTouchEnd]);
 
   // Load user preferences from IndexedDB
   useEffect(() => {
@@ -476,50 +593,6 @@ function EpubReader() {
       }
     };
   }, [rendition, bookData, book]);
-
-  // Touch/swipe handlers with improved feedback
-  const onTouchStart = (e) => {
-    setTouchEnd(null); // otherwise the swipe is fired even with usual touch events
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const onTouchMove = (e) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-    // Prevent default to avoid scrolling during swipe
-    if (Math.abs(e.targetTouches[0].clientX - touchStart) > 10) {
-      e.preventDefault();
-    }
-  };
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-
-    if (isLeftSwipe && rendition) {
-      // Show visual feedback
-      setSwipeDirection("left");
-      setTimeout(() => setSwipeDirection(null), 300);
-
-      // Add haptic feedback for swipe
-      if (navigator.vibrate) {
-        navigator.vibrate(50); // Haptic feedback on supported devices
-      }
-      nextBtn(); // Swipe left = next page
-    }
-    if (isRightSwipe && rendition) {
-      // Show visual feedback
-      setSwipeDirection("right");
-      setTimeout(() => setSwipeDirection(null), 300);
-
-      // Add haptic feedback for swipe
-      if (navigator.vibrate) {
-        navigator.vibrate(50); // Haptic feedback on supported devices
-      }
-      backBtn(); // Swipe right = previous page
-    }
-  };
 
   // Apply theme changes
   useEffect(() => {
@@ -1016,19 +1089,6 @@ function EpubReader() {
     }
   };
 
-  // Navigation functions
-  const nextBtn = () => {
-    if (!rendition) return;
-    rendition.next();
-    updatePageInfo();
-  };
-
-  const backBtn = () => {
-    if (!rendition) return;
-    rendition.prev();
-    updatePageInfo();
-  };
-
   // Toggle theme
   const toggleTheme = async () => {
     const newThemeState = !isDarkTheme;
@@ -1114,6 +1174,9 @@ function EpubReader() {
       className={`overflow-y-hidden main-book-reader-container h-lvh ${
         isDarkTheme ? "dark" : "default"
       }`}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
       <div
         className={`titlebar reader-controls ${
@@ -1172,9 +1235,6 @@ function EpubReader() {
           id="viewer"
           ref={viewerRef}
           className={`epub-viewer ${isFullscreen ? "h-lvh" : ""}`}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
         />
 
         {/* Swipe feedback indicator for mobile */}
@@ -1241,6 +1301,12 @@ function EpubReader() {
           </span>
           {isMobile && (
             <span className="text-xs opacity-70 mt-1">Swipe to navigate</span>
+          )}
+          {/* Debug info - remove in production */}
+          {touchDebug && (
+            <span className="text-xs bg-red-500 text-white px-2 py-1 rounded mt-1">
+              {touchDebug}
+            </span>
           )}
         </div>
       </div>

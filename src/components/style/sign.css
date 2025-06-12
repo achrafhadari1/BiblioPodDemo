@@ -1,0 +1,13 @@
+.flex-factor {
+  flex: 1 1 0%;
+}
+.border-left {
+  border-radius: 16px 0px 0px 16px;
+}
+.card-size {
+  height: auto;
+  margin: auto;
+}
+.justify-end {
+  justify-content: end;
+}

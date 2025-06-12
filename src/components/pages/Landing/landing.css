@@ -1,0 +1,59 @@
+.authors-container {
+  height: 16rem;
+  position: relative;
+  margin-top: auto;
+}
+
+.authors-scroll {
+  position: relative;
+  height: 100%;
+  animation: scroll 30s linear infinite;
+}
+
+.author-img {
+  height: 100%;
+  width: auto;
+  object-fit: cover;
+  min-width: 12rem;
+  flex-shrink: 0;
+}
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .authors-container {
+    height: 12rem;
+  }
+
+  .author-img {
+    min-width: 8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .authors-container {
+    height: 10rem;
+  }
+
+  .author-img {
+    min-width: 6rem;
+  }
+}
+
+/* Add smooth transitions */
+.author-img {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Optional: Pause animation on hover */
+.authors-scroll:hover {
+  animation-play-state: paused;
+}

@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Font utility classes */
+
+/* Additional utility classes */
+.op-1 {
+  opacity: 1 !important;
+}
+
+.hidden {
+  display: none;
+  transition: 0.4s ease-in-out;
+}
+
+.not-hidden {
+  transition: 0.4s ease-in-out;
+}
+
+.block-transition {
+  transition: 0.4s ease-in-out;
+}
+.column {
+  display: flex;
+  flex-direction: column;
+}
+.cursor {
+  cursor: pointer;
+}
+
+.dark {
+  background-color: #000;
+  color: #fff;
+  transition: 0.5s ease-in-out;
+}
+
+.default {
+  background-color: #fff;
+  color: #000;
+  transition: 0.5s ease-in-out;
+}
+
+.light-button {
+  color: #fff !important;
+  opacity: 0.7 !important;
+}
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-start-rgb));
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Smooth transitions */
+* {
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+* {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}

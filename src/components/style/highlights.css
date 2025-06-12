@@ -1,0 +1,390 @@
+/* Highlights Page Styles - Clean & Minimal */
+.highlights-container {
+  min-height: 100vh;
+  background-color: #f9fafb;
+  padding: 2rem 0;
+}
+
+.highlights-header {
+  margin-bottom: 2rem;
+}
+
+.highlights-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.5rem;
+}
+
+.highlights-subtitle {
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.highlights-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: #6b7280;
+}
+
+.highlights-loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.search-bar {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.search-bar input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  width: 1rem;
+  height: 1rem;
+}
+
+.clear-search {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.clear-search:hover {
+  color: #6b7280;
+}
+
+.book-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-button {
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-button.active {
+  background-color: #111827;
+  color: white;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.filter-button:not(.active) {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.filter-button:not(.active):hover {
+  background-color: #e5e7eb;
+}
+
+.clear-filter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background-color: #e5e7eb;
+  color: #6b7280;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-filter:hover {
+  background-color: #d1d5db;
+}
+
+.highlights-empty {
+  text-align: center;
+  padding: 5rem 2rem;
+}
+
+.highlights-empty p {
+  color: #9ca3af;
+  font-size: 1.125rem;
+  margin-bottom: 0.5rem;
+}
+
+.highlights-empty p:last-child {
+  color: #9ca3af;
+  font-size: 1rem;
+}
+
+.book-section {
+  margin-bottom: 3rem;
+}
+
+.book-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.book-cover {
+  width: 3rem;
+  height: 4rem;
+  object-fit: cover;
+  border-radius: 0.375rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.book-info h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+
+.book-info p {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .highlights-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.highlight-card {
+  background: white;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.highlight-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-color: #d1d5db;
+}
+
+.highlight-content {
+  padding: 1.5rem;
+  border-left: 3px solid;
+  margin: 1rem;
+  border-radius: 0.375rem;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.highlight-text {
+  color: #374151;
+  line-height: 1.6;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.highlight-metadata {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem 1rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.color-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background-color: #f3f4f6;
+  border-radius: 0.375rem;
+  font-weight: 500;
+}
+
+.date-info {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.highlight-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #f3f4f6;
+  background-color: #fafafa;
+}
+
+.read-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #111827;
+  color: white;
+  text-decoration: none;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.read-button:hover {
+  background-color: #1f2937;
+}
+
+.delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  background: none;
+  color: #ef4444;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+.highlight-card:hover .delete-button {
+  opacity: 1;
+}
+
+.delete-button:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .highlights-container {
+    background-color: white;
+  }
+
+  .highlights-title {
+    color: black;
+  }
+
+  .highlights-subtitle {
+    color: #9ca3af;
+  }
+
+  .search-bar input {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+
+  .search-bar input:focus {
+    border-color: #3b82f6;
+  }
+
+  .filter-button.active {
+    background-color: #111827;
+    color: white;
+  }
+
+  .filter-button:not(.active) {
+    background-color: white;
+    color: #111827;
+  }
+
+  .filter-button:not(.active):hover {
+    background-color: #4b5563;
+    color: white;
+  }
+
+  .highlight-card {
+    background: white;
+    border-color: #374151;
+  }
+
+  .highlight-card:hover {
+    border-color: #4b5563;
+  }
+
+  .highlight-content {
+    background-color: white;
+  }
+
+  .highlight-text {
+    color: black;
+  }
+
+  .highlight-actions {
+    background-color: white;
+    border-color: #374151;
+  }
+
+  .read-button {
+    background-color: #f9fafb;
+    color: #111827;
+  }
+
+  .read-button:hover {
+    background-color: #e5e7eb;
+  }
+
+  .book-info h2 {
+    color: #111827;
+  }
+
+  .color-badge {
+    background-color: #374151;
+  }
+}

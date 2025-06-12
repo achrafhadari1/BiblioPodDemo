@@ -1,0 +1,112 @@
+.opacity-background {
+  background: rgba(0, 0, 0, 0.6);
+}
+.height70 {
+  height: 70%;
+}
+.hidden {
+  display: none !important;
+}
+.p-y-1-x-2 {
+  padding: 10px 20px;
+}
+::-webkit-scrollbar-track {
+  background: none;
+}
+.h-90per {
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.scrollbar {
+  float: left;
+  height: 95%;
+  width: 100%;
+  overflow-y: auto;
+  margin-bottom: 25px;
+}
+.scrollbar-2 {
+  float: left;
+  height: 50px;
+  width: 100%;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.force-overflow {
+  height: 100%;
+}
+.force-overflow-2 {
+  min-height: 60px;
+}
+#style-4::-webkit-scrollbar-track {
+  background-color: #d4d4d8;
+}
+
+#style-4::-webkit-scrollbar {
+  width: 10px;
+  background-color: #f5f5f5;
+}
+
+#style-4::-webkit-scrollbar-thumb {
+  background-color: #000000;
+  border: 1px solid #000000;
+  border-radius: 20px;
+}
+#style-5::-webkit-scrollbar-track {
+  background-color: #ffffff;
+}
+
+#style-5::-webkit-scrollbar {
+  width: 10px;
+  background-color: #f5f5f5;
+}
+
+#style-5::-webkit-scrollbar-thumb {
+  background-color: #000000;
+  border: 1px solid #000000;
+  border-radius: 20px;
+}
+.p-l0-1 {
+  padding-right: 0.1rem;
+}
+
+.chapter-title {
+  border-radius: 5px;
+  width: 91%;
+  height: auto;
+  padding: 8px 5px;
+  transition: 0.1s ease-in-out;
+  cursor: pointer;
+}
+.chapter-title:hover {
+  border-radius: 5px;
+  width: 91%;
+  color: #000;
+  background-color: #fff;
+}
+.quote {
+  font-size: 12px;
+  background: black;
+  border-bottom: white 1px solid;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  /* border-radius: 13px; */
+  color: white;
+}
+
+/* .menu-con {
+  box-shadow: 5px 7px 9px 2px RGBA(0, 0, 0, 0.2);
+  border-top-right-radius: 20px;
+} */
+.X-icon {
+  font-size: 1.5rem;
+  color: white;
+  margin: 0.3rem;
+}
+.card_img {
+  object-position: top;
+}
+.w-90 {
+  width: 90%;
+}

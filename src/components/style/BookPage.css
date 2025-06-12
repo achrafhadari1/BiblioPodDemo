@@ -1,0 +1,12 @@
+.library-inner-container {
+  display: flex;
+  width: 56%;
+  gap: 37px;
+  justify-content: center;
+}
+
+.library-outer-container {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}

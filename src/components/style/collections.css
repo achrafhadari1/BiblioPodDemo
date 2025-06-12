@@ -1,0 +1,372 @@
+@import url("https://fonts.googleapis.com/css?family=Open+Sans:400,600&display=swap");
+
+/* Variables */
+:root {
+  --color1: #f19c24;
+  --color2: #e77a1f;
+  --color3: #de002b;
+  --color4: #b20457;
+  --color5: #ba108d;
+  --color6: #8d38ad;
+  --color7: #3a96db;
+  --color8: #2e7fb9;
+  --color9: #25a186;
+  --color10: #8ccd54;
+}
+
+.swiper {
+  width: 100%;
+  height: 100%;
+}
+.swiper-image {
+  width: 87%;
+  border-radius: 20px;
+  height: 90%;
+}
+.swiper-slide {
+  text-align: center;
+  background: transparent !important;
+  font-size: 18px;
+  background: #fff;
+
+  /* Center slide text vertically */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.icon-outer-container {
+  position: relative;
+}
+
+.icon-container {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 24px;
+}
+
+/* Adjust margin or padding as needed */
+.icon-container > * {
+  margin-right: 5px; /* Adjust spacing between icons */
+}
+
+.curr-button-light {
+  align-self: self-end;
+  background-color: #000;
+  margin-bottom: 1rem;
+  display: flex;
+  color: #fff;
+  height: 6vh;
+  font-size: 13px;
+  width: 40%;
+  justify-content: center;
+  float: right;
+  margin-right: 20px;
+  border-radius: 14px;
+  align-items: center;
+}
+.goIcon-light {
+  font-size: 22px;
+  margin-left: 7px;
+  height: 21px;
+  color: #fff;
+}
+.width-12r {
+  width: 12rem !important;
+}
+
+/* Shelf */
+.shelf-container {
+  position: relative;
+  height: 216px;
+  width: 44%;
+  padding: 1rem;
+  border-radius: 30px;
+  box-shadow: 0 0 0 5px rgba(87, 87, 87, 0);
+  transition: box-shadow 0.3s ease;
+}
+
+.shelf-container:hover {
+  box-shadow: 0 0 0 5px #000;
+}
+
+.see-more-shelf {
+  position: absolute;
+  top: 9px;
+  color: white;
+  text-decoration: underline;
+  right: 33px;
+}
+.weird-img-container {
+  display: flex;
+  position: relative;
+  color: white;
+
+  height: 100%;
+  width: 60%;
+}
+
+.img1 {
+  z-index: 3;
+  border-radius: 13px;
+  height: 101%;
+}
+.img2 {
+  left: 62px;
+  border-radius: 13px;
+  z-index: 2;
+  top: 20px;
+  opacity: 0.6;
+  height: 90%;
+  position: absolute;
+}
+.img3 {
+  left: 122px;
+  border-radius: 13px;
+  top: 39px;
+  z-index: 1;
+  opacity: 0.3;
+  position: absolute;
+  height: 80%;
+}
+.title-and-count {
+  display: flex;
+  justify-content: center;
+  width: 50%;
+  flex-direction: column;
+  color: white;
+
+  align-items: center;
+}
+
+.Pex37 {
+  font-size: 36px;
+}
+.shelf_icons {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+}
+.font-20 {
+  font-size: 20px;
+  opacity: 0.5;
+  transition: 0.2s ease-in-out;
+  cursor: pointer;
+  color: #fff;
+}
+.font-20:hover {
+  opacity: 1;
+}
+.op-05 {
+  width: 100%;
+
+  opacity: 0.5;
+}
+.shelf-top {
+  justify-content: center;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 2rem;
+  text-align: center;
+  height: 30%;
+  border-bottom: 1.5px solid #e5e7eb;
+}
+.new-col-btn {
+  width: 18%;
+  /* display: flex; */
+  margin: 0 auto;
+}
+.swiper-text-desc {
+  height: 137px;
+  overflow-y: auto;
+}
+.edit-books-lineup {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 10px 0rem;
+}
+@media screen and (max-width: 800px) {
+  .img3 {
+    left: 109px;
+    border-radius: 13px;
+    top: 92px;
+    z-index: 1;
+    opacity: 0.3;
+    position: absolute;
+    height: 46%;
+  }
+  .img2 {
+    left: 61px;
+    border-radius: 13px;
+    z-index: 2;
+    top: 52px;
+    opacity: 0.6;
+    height: 68%;
+    position: absolute;
+  }
+  .img1 {
+    z-index: 3;
+    border-radius: 13px;
+    height: 75%;
+    top: 39px;
+    position: absolute;
+    left: 19px;
+  }
+  .con-list-container {
+    width: 100%;
+  }
+  .shelf-container {
+    width: 100%;
+  }
+  .form_edit_grid {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+  .form_edit_child {
+    width: 93%;
+    margin: auto;
+  }
+  .remove_books_edit {
+    width: 100%;
+    flex-direction: column;
+    justify-content: space-around;
+  }
+  .edit-books-lineup {
+    width: 90%;
+    flex-direction: row;
+    margin: auto;
+    justify-content: space-between;
+  }
+  .drawer_buttons {
+    flex-direction: row;
+    margin: auto;
+  }
+  .container_lists_title {
+    font-size: 2.5rem;
+  }
+  .new-col-btn {
+    width: 56%;
+  }
+  .make_col_btns {
+    gap: 3rem;
+    display: flex;
+  }
+}
+/* Collection styles */
+.collections-container {
+  width: 100%;
+  padding: 1rem;
+}
+
+.shelf-container {
+  position: relative;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  min-height: 120px;
+  transition: all 0.3s ease;
+}
+
+.shelf_icons {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 10;
+}
+
+.title-and-count {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+}
+
+.weird-img-container {
+  display: flex;
+  position: relative;
+  width: 120px;
+  height: 100px;
+}
+
+.weird-img-container img {
+  position: absolute;
+  width: 60px;
+  height: 90px;
+  transition: transform 0.3s ease;
+}
+
+.img1 {
+  right: 0;
+  z-index: 3;
+  transform: rotate(10deg);
+}
+
+.img2 {
+  right: 20px;
+  z-index: 2;
+  transform: rotate(0deg);
+}
+
+.img3 {
+  right: 40px;
+  z-index: 1;
+  transform: rotate(-10deg);
+}
+
+.shelf-container:hover .img1 {
+  transform: rotate(15deg) translateY(-5px);
+}
+
+.shelf-container:hover .img2 {
+  transform: rotate(5deg) translateY(-3px);
+}
+
+.shelf-container:hover .img3 {
+  transform: rotate(-15deg) translateY(-5px);
+}
+
+.view-toggle-container {
+  position: sticky;
+  top: 1rem;
+  z-index: 20;
+  margin-bottom: 1.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .collections-wrapper.grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Add these styles for the improved list view */
+.book-showcase {
+  perspective: 1000px;
+}
+
+.book-cover-wrapper {
+  transition: all 0.3s ease;
+}
+
+.book-cover-wrapper:hover {
+  transform: translateY(-10px) rotate(0deg) !important;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Collection hover effect */
+.collections-wrapper > div:hover {
+  transform: translateY(-2px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .book-showcase {
+    height: 140px;
+  }
+
+  .book-cover-wrapper img {
+    height: 120px;
+    width: 80px;
+  }
+}

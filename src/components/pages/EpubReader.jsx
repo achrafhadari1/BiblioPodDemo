@@ -74,7 +74,7 @@ function EpubReader() {
 
   // Minimum swipe distance (in px) and debounce time
   const minSwipeDistance = 50;
-  const swipeDebounceTime = 300; // ms
+  const swipeDebounceTime = 150; // ms - reduced for better responsiveness
 
   // Refs
   const titleBarTimerRef = useRef(null);
@@ -105,22 +105,26 @@ function EpubReader() {
   // Navigation functions (defined first to avoid dependency issues)
   const nextBtn = useCallback(() => {
     if (!rendition) return;
-    resetSwipeState(); // Reset swipe state before navigation
     rendition.next();
     updatePageInfo();
-  }, [rendition, resetSwipeState]);
+  }, [rendition]);
 
   const backBtn = useCallback(() => {
     if (!rendition) return;
-    resetSwipeState(); // Reset swipe state before navigation
     rendition.prev();
     updatePageInfo();
-  }, [rendition, resetSwipeState]);
+  }, [rendition]);
 
   // Touch/swipe handlers with improved debouncing and state management
   const onTouchStart = useCallback((e) => {
+    console.log("[SWIPE] Touch start triggered", {
+      isSwipingRef: isSwipingRef.current,
+      touchStartRef: touchStartRef.current,
+    });
+
     // Prevent multiple simultaneous swipes
     if (isSwipingRef.current) {
+      console.log("[SWIPE] Preventing touch start - already swiping");
       e.preventDefault();
       return;
     }
@@ -131,7 +135,11 @@ function EpubReader() {
     isSwipingRef.current = true;
 
     setTouchDebug(`Touch Start: ${startX}`);
-    console.log("[SWIPE] Touch start detected at X:", startX);
+    console.log(
+      "[SWIPE] Touch start detected at X:",
+      startX,
+      "State set to swiping"
+    );
   }, []);
 
   const onTouchMove = useCallback((e) => {
@@ -151,19 +159,31 @@ function EpubReader() {
 
   const onTouchEnd = useCallback(
     (e) => {
+      console.log("[SWIPE] Touch end triggered", {
+        isSwipingRef: isSwipingRef.current,
+        touchStartRef: touchStartRef.current,
+        touchEndRef: touchEndRef.current,
+      });
+
+      // Always reset state at the end, regardless of what happens
+      const cleanup = () => {
+        isSwipingRef.current = false;
+        touchStartRef.current = null;
+        touchEndRef.current = null;
+        console.log("[SWIPE] State cleaned up");
+      };
+
       // Check debounce time to prevent rapid swipes
       const now = Date.now();
       if (now - lastSwipeTimeRef.current < swipeDebounceTime) {
         console.log("[SWIPE] Swipe debounced - too soon after last swipe");
-        isSwipingRef.current = false;
-        touchStartRef.current = null;
-        touchEndRef.current = null;
+        cleanup();
         return;
       }
 
       if (!touchStartRef.current || !isSwipingRef.current) {
         console.log("[SWIPE] Touch end without valid start");
-        isSwipingRef.current = false;
+        cleanup();
         return;
       }
 
@@ -175,8 +195,7 @@ function EpubReader() {
 
       if (!endX) {
         console.log("[SWIPE] Touch end without valid end position");
-        isSwipingRef.current = false;
-        touchStartRef.current = null;
+        cleanup();
         return;
       }
 
@@ -223,10 +242,8 @@ function EpubReader() {
         }
       }
 
-      // Reset touch state
-      isSwipingRef.current = false;
-      touchStartRef.current = null;
-      touchEndRef.current = null;
+      // Always cleanup at the end
+      cleanup();
     },
     [minSwipeDistance, rendition, nextBtn, backBtn, swipeDebounceTime]
   );

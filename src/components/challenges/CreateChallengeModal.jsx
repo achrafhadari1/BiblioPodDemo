@@ -26,9 +26,9 @@ const CreateChallengeModal = ({
   if (!showModal) return null;
 
   return (
-    <div className="fixed min-h-screen inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full p-6 overflow-y-auto max-h-[90vh] relative animate-fadeIn">
-        <h2 className="font-['Playfair_Display',serif] text-2xl font-bold mb-6">
+    <div className="fixed min-h-screen inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full p-4 sm:p-6 overflow-y-auto max-h-[95vh] sm:max-h-[90vh] relative animate-fadeIn">
+        <h2 className="font-playfair text-xl sm:text-2xl font-bold mb-4 sm:mb-6">
           Create New Reading Challenge
         </h2>
 
@@ -145,16 +145,16 @@ const CreateChallengeModal = ({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 mt-8 border-t pt-4">
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-6 sm:mt-8 border-t pt-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 order-2 sm:order-1"
           >
             Cancel
           </button>
           <button
             onClick={onCreateChallenge}
-            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-2"
+            className="w-full sm:w-auto px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors flex items-center justify-center gap-2 order-1 sm:order-2"
           >
             <Trophy size={16} />
             Create Challenge

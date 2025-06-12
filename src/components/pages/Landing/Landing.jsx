@@ -107,7 +107,7 @@ export const Landing = () => {
               </Link>
             </div>
 
-            <div className=" md:flex items-center space-x-6">
+            <div className="hidden md:flex items-center space-x-6">
               <a
                 href="#features"
                 className="text-sm font-medium hover:text-amber-600 transition-colors border-b-2 border-transparent hover:border-amber-600"
@@ -139,52 +139,111 @@ export const Landing = () => {
                 {darkMode ? <Moon size={18} /> : <Sun size={18} />}
               </button>
             </div>
+
+            {/* Mobile menu button */}
+            {/* <div className="md:hidden flex items-center space-x-2">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`p-2 rounded-full ${
+                  darkMode
+                    ? "bg-gray-700 text-amber-400"
+                    : "bg-amber-100 text-amber-600"
+                } rotate-3 shadow-sm`}
+              >
+                {darkMode ? <Moon size={16} /> : <Sun size={16} />}
+              </button>
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className={`p-2 rounded-md ${
+                  darkMode ? "text-gray-300" : "text-gray-600"
+                } hover:text-amber-600`}
+              >
+                <Menu size={20} />
+              </button>
+            </div> */}
           </div>
         </div>
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex">
-            <div
-              className={`w-64 ${
-                darkMode ? "bg-gray-800" : "bg-[#f8f5f0]"
-              } h-full`}
-            >
-              <div className="p-4 flex justify-between items-center border-b border-amber-200">
-                <h2 className="text-xl font-bold italic font-playfair">
-                  BiblioPod
-                </h2>
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 rounded-md text-gray-500 hover:text-gray-700"
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm md:hidden">
+            <div className="fixed inset-y-0 right-0 max-w-xs w-full">
+              <div
+                className={`w-full h-full ${
+                  darkMode ? "bg-gray-800" : "bg-[#f8f5f0]"
+                } shadow-xl`}
+              >
+                <div
+                  className={`p-4 flex justify-between items-center border-b ${
+                    darkMode ? "border-gray-700" : "border-amber-200"
+                  }`}
                 >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="p-4 space-y-4">
-                <a
-                  href="#features"
-                  className="block py-2 text-sm font-medium hover:text-amber-600 transition-colors"
-                >
-                  Features
-                </a>
-                <a
-                  href="#insights"
-                  className="block py-2 text-sm font-medium hover:text-amber-600 transition-colors"
-                >
-                  Insights
-                </a>
+                  <div className="flex items-center">
+                    <img
+                      className="w-24"
+                      src="/logo-long.png"
+                      alt="BiblioPod"
+                    />
+                    <div className="ml-1 text-xs -rotate-3 font-mono tracking-tight">
+                      (beta)
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`p-2 rounded-md ${
+                      darkMode
+                        ? "text-gray-400 hover:text-gray-200"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="p-6 space-y-6">
+                  <a
+                    href="#features"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`block py-3 text-base font-medium ${
+                      darkMode
+                        ? "text-gray-200 hover:text-amber-400"
+                        : "text-gray-700 hover:text-amber-600"
+                    } transition-colors border-b ${
+                      darkMode ? "border-gray-700" : "border-gray-200"
+                    } border-dashed`}
+                  >
+                    Features
+                  </a>
+                  <a
+                    href="#insights"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`block py-3 text-base font-medium ${
+                      darkMode
+                        ? "text-gray-200 hover:text-amber-400"
+                        : "text-gray-700 hover:text-amber-600"
+                    } transition-colors border-b ${
+                      darkMode ? "border-gray-700" : "border-gray-200"
+                    } border-dashed`}
+                  >
+                    Insights
+                  </a>
 
-                <Link
-                  href="/welcome"
-                  className="block py-3 text-sm font-medium bg-amber-600 text-white rounded-lg text-center hover:bg-amber-700 transition-colors"
-                >
-                  Get Started
-                </Link>
+                  <div className="pt-4">
+                    <Link
+                      href="/welcome"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block w-full py-4 text-base font-medium bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl text-center hover:from-amber-700 hover:to-orange-700 transition-all duration-300 shadow-lg transform hover:scale-105"
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <BookOpen size={20} />
+                        Get Started
+                      </div>
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
             <div
-              className="flex-1"
+              className="absolute inset-0"
               onClick={() => setMobileMenuOpen(false)}
             ></div>
           </div>
@@ -198,8 +257,8 @@ export const Landing = () => {
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center justify-center text-center">
-            <div className="text-left flex items-center gap-2 text-sm">
+          <div className="flex flex-col sm:flex-row items-center justify-center text-center gap-2">
+            <div className="flex items-center gap-2 text-xs sm:text-sm">
               <span className="text-amber-600">🎓</span>
               <span
                 className={`font-medium ${
@@ -208,10 +267,12 @@ export const Landing = () => {
               >
                 Showcase Demo Notice:
               </span>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
               <span
-                className={`  ${
+                className={`${
                   darkMode ? "text-amber-300" : "text-amber-700"
-                }`}
+                } text-center`}
               >
                 This is a demo version using localStorage due to hosting budget
                 constraints. Upload your own ePub files to test the reading
@@ -219,7 +280,7 @@ export const Landing = () => {
               </span>
               <Link
                 href="/terms"
-                className="text-amber-600 hover:text-amber-700 underline ml-2"
+                className="text-amber-600 hover:text-amber-700 underline whitespace-nowrap"
               >
                 Learn more
               </Link>
@@ -244,45 +305,50 @@ export const Landing = () => {
           )}
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 relative">
-          <div className="flex flex-row md:flex-row items-center gap-12">
-            <div className="md:w-1/2 text-left">
-              <h1 className="font-playfair text-4xl md:text-5xl font-bold mb-6 leading-tight">
-                Your cozy corner <br />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 md:py-24 relative">
+          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+            <div className="w-full lg:w-1/2 text-center lg:text-left">
+              <h1 className="font-playfair text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 leading-tight">
+                Your cozy corner <br className="hidden sm:block" />
                 in the{" "}
                 <span className="italic text-amber-600">digital bookshelf</span>
               </h1>
-              <p className="text-lg md:text-xl opacity-80 mb-4 font-playfair italic">
+              <p className="text-base sm:text-lg md:text-xl opacity-80 mb-4 sm:mb-6 font-playfair italic max-w-2xl mx-auto lg:mx-0">
                 Track your reading journey, collect moments from pages, and
                 rediscover the joy of literature.
               </p>
-              <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm text-amber-800">
+              <div className="mb-6 sm:mb-8 p-3 sm:p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs sm:text-sm text-amber-800">
                   <strong>📚 Educational Project:</strong> This platform is
                   designed for managing your legally purchased EPUB collection
                   as part of a school project. Please respect copyright laws and
                   only upload books you own.
                 </p>
               </div>
-              <div className="flex justify-center">
+              <div className="flex justify-center lg:justify-start mb-6 sm:mb-8">
                 <Link
                   href="/welcome"
-                  className="px-8 py-4 bg-gradient-to-r from-amber-600 to-orange-600 text-white font-sans font-medium rounded-xl shadow-lg hover:from-amber-700 hover:to-orange-700 transition-all duration-300 inline-flex items-center gap-3 transform hover:-rotate-1 hover:scale-105 text-lg"
+                  className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-amber-600 to-orange-600 text-white font-sans font-medium rounded-xl shadow-lg hover:from-amber-700 hover:to-orange-700 transition-all duration-300 inline-flex items-center gap-2 sm:gap-3 transform hover:-rotate-1 hover:scale-105 text-base sm:text-lg"
                 >
-                  <BookOpen size={24} />
-                  Start your reading journey
-                  <ChevronRight size={20} />
+                  <BookOpen size={20} className="sm:w-6 sm:h-6" />
+                  <span className="hidden sm:inline">
+                    Start your reading journey
+                  </span>
+                  <span className="sm:hidden">Get Started</span>
+                  <ChevronRight size={16} className="sm:w-5 sm:h-5" />
                 </Link>
               </div>
 
-              <div className="mt-8 flex items-center gap-2 text-sm opacity-70">
-                <Heart size={14} className="text-amber-600" />
-                <span>Educational project made for books and learning</span>
+              <div className="flex items-center justify-center lg:justify-start gap-2 text-xs sm:text-sm opacity-70">
+                <Heart size={12} className="sm:w-3.5 sm:h-3.5 text-amber-600" />
+                <span className="text-center lg:text-left">
+                  Educational project made for books and learning
+                </span>
               </div>
             </div>
 
             {/* Hero Image */}
-            <div className="md:w-1/2 transform rotate-2">
+            <div className="w-full lg:w-1/2 mt-8 lg:mt-0 transform rotate-1 lg:rotate-2">
               <div
                 className={`rounded-2xl overflow-hidden shadow-xl border-2 ${
                   darkMode
@@ -546,28 +612,28 @@ export const Landing = () => {
                 : "bg-white border-amber-200"
             } transform -rotate-1`}
           >
-            <div className="p-6 md:p-8">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-playfair font-bold">
+            <div className="p-4 sm:p-6 md:p-8">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+                <div className="xl:col-span-2">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-3">
+                    <h3 className="text-lg sm:text-xl font-playfair font-bold text-center sm:text-left">
                       Your Reading Rhythm
                     </h3>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1 sm:gap-2 justify-center sm:justify-end">
                       <button
-                        className={`px-3 py-1 text-sm rounded-full ${
+                        className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full ${
                           darkMode ? "bg-gray-700" : "bg-gray-100"
                         } transform -rotate-1`}
                       >
                         Week
                       </button>
                       <button
-                        className={`px-3 py-1 text-sm rounded-full bg-amber-600 text-white transform rotate-1`}
+                        className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full bg-amber-600 text-white transform rotate-1`}
                       >
                         Month
                       </button>
                       <button
-                        className={`px-3 py-1 text-sm rounded-full ${
+                        className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full ${
                           darkMode ? "bg-gray-700" : "bg-gray-100"
                         } transform -rotate-1`}
                       >
@@ -576,7 +642,7 @@ export const Landing = () => {
                     </div>
                   </div>
 
-                  <div className="h-80">
+                  <div className="h-64 sm:h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={[
@@ -592,8 +658,12 @@ export const Landing = () => {
                         <XAxis
                           dataKey="name"
                           stroke={darkMode ? "#9ca3af" : "#6b7280"}
+                          fontSize={12}
                         />
-                        <YAxis stroke={darkMode ? "#9ca3af" : "#6b7280"} />
+                        <YAxis
+                          stroke={darkMode ? "#9ca3af" : "#6b7280"}
+                          fontSize={12}
+                        />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: darkMode ? "#1f2937" : "#fff",
@@ -602,6 +672,7 @@ export const Landing = () => {
                             }`,
                             borderRadius: "0.5rem",
                             color: darkMode ? "#fff" : "#000",
+                            fontSize: "12px",
                           }}
                         />
                         <Bar
@@ -614,13 +685,13 @@ export const Landing = () => {
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   <div
-                    className={`p-6 rounded-xl ${
+                    className={`p-4 sm:p-6 rounded-xl ${
                       darkMode ? "bg-gray-700" : "bg-amber-50"
                     } transform rotate-1`}
                   >
-                    <h3 className="text-lg font-playfair font-bold mb-4">
+                    <h3 className="text-base sm:text-lg font-playfair font-bold mb-3 sm:mb-4 text-center xl:text-left">
                       This Year's Journey
                     </h3>
 
@@ -667,11 +738,11 @@ export const Landing = () => {
                   </div>
 
                   <div
-                    className={`p-6 rounded-xl ${
+                    className={`p-4 sm:p-6 rounded-xl ${
                       darkMode ? "bg-gray-700" : "bg-amber-50"
                     } transform -rotate-1`}
                   >
-                    <h3 className="text-lg font-playfair font-bold mb-4">
+                    <h3 className="text-base sm:text-lg font-playfair font-bold mb-3 sm:mb-4 text-center xl:text-left">
                       Literary Wanderings
                     </h3>
 
@@ -727,20 +798,20 @@ export const Landing = () => {
           <p className="text-lg max-w-3xl mx-auto opacity-80 mb-8 font-playfair italic">
             Because your reading journey deserves more than a spreadsheet.
           </p>
-          <div className="flex  sm:flex-row justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
             <Link
               href="/signup"
-              className="px-8 py-3 bg-amber-600 text-white font-sans font-medium rounded-lg shadow-md hover:bg-amber-700 transition-colors transform hover:-rotate-1"
+              className="px-6 sm:px-8 py-3 bg-amber-600 text-white font-sans font-medium rounded-lg shadow-md hover:bg-amber-700 transition-colors transform hover:-rotate-1 text-center"
             >
               Create your bookshelf
             </Link>
             <Link
               href="/login"
-              className={`px-8 py-3 border font-sans ${
+              className={`px-6 sm:px-8 py-3 border font-sans ${
                 darkMode
                   ? "border-gray-600 hover:bg-gray-700"
                   : "border-amber-300 hover:bg-amber-100"
-              } rounded-lg font-medium transition-colors transform hover:rotate-1`}
+              } rounded-lg font-medium transition-colors transform hover:rotate-1 text-center`}
             >
               Return to your books
             </Link>
@@ -755,12 +826,16 @@ export const Landing = () => {
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex  md:flex-row justify-between gap-8">
-            <div className="mb-8 md:mb-0">
-              <div className="flex items-center mb-4">
-                <img className="w-[9rem]" src="/logo-long.png" alt="" />
+          <div className="flex flex-col lg:flex-row justify-between gap-8">
+            <div className="mb-8 lg:mb-0 text-center lg:text-left">
+              <div className="flex justify-center lg:justify-start items-center mb-4">
+                <img
+                  className="w-32 sm:w-36"
+                  src="/logo-long.png"
+                  alt="BiblioPod"
+                />
               </div>
-              <p className="max-w-xs text-sm opacity-70">
+              <p className="max-w-xs mx-auto lg:mx-0 text-sm opacity-70">
                 An educational project demonstrating digital library management
                 for legally purchased EPUB collections.
               </p>
@@ -771,9 +846,9 @@ export const Landing = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
-              <div>
-                <h3 className="font-playfair italic font-bold text-lg mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 w-full lg:w-auto">
+              <div className="text-center sm:text-left">
+                <h3 className="font-playfair italic font-bold text-base sm:text-lg mb-3 sm:mb-4">
                   Explore
                 </h3>
                 <ul className="space-y-2 text-sm">
@@ -812,8 +887,8 @@ export const Landing = () => {
                 </ul>
               </div>
 
-              <div>
-                <h3 className="font-playfair italic font-bold text-lg mb-4">
+              <div className="text-center sm:text-left">
+                <h3 className="font-playfair italic font-bold text-base sm:text-lg mb-3 sm:mb-4">
                   Community
                 </h3>
                 <ul className="space-y-2 text-sm">
@@ -852,8 +927,8 @@ export const Landing = () => {
                 </ul>
               </div>
 
-              <div>
-                <h3 className="font-playfair italic font-bold text-lg mb-4">
+              <div className="text-center sm:text-left">
+                <h3 className="font-playfair italic font-bold text-base sm:text-lg mb-3 sm:mb-4">
                   Legal
                 </h3>
                 <ul className="space-y-2 text-sm">

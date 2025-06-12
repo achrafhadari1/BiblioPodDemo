@@ -158,7 +158,7 @@ const CollectionDetailPage = () => {
 
   if (loading) {
     return (
-      <div className=" w-[96%] ml-auto flex-1 p-8 overflow-auto">
+      <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
         <div className="flex items-center mb-8">
           <button className="mr-4 p-2 rounded-full hover:bg-gray-100">
             <ArrowLeft size={20} />
@@ -189,7 +189,7 @@ const CollectionDetailPage = () => {
 
   if (!collection) {
     return (
-      <div className="flex-1 w-[96%] ml-auto p-8 overflow-auto">
+      <div className="flex-1 w-full lg:w-[96%] lg:ml-auto p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
         <div className="flex items-center mb-8">
           <button
             onClick={() => router.push("/collections")}
@@ -219,7 +219,7 @@ const CollectionDetailPage = () => {
   }
 
   return (
-    <div className=" w-[96%] ml-auto flex-1 p-8 overflow-auto">
+    <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
       <div className="flex items-center mb-6">
         <button
           onClick={() => router.push("/collections")}

@@ -456,7 +456,7 @@ export const Settings = () => {
   };
 
   return (
-    <div className="w-[96%] ml-auto flex-1 p-8 overflow-auto">
+    <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
       {/* Header */}
       <div className="flex items-center mb-8">
         <button

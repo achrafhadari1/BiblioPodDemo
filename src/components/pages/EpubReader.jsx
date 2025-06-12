@@ -19,7 +19,8 @@ import { EpubReaderSettings } from "../EpubReaderComponents/EpubReaderSettings";
 
 // Default reader settings
 const DEFAULT_SETTINGS = {
-  fontSize: "28px",
+  fontSize:
+    typeof window !== "undefined" && window.innerWidth <= 768 ? "18px" : "28px",
   fontFamily: "'Lora', serif",
   isDarkTheme: false,
 };
@@ -50,6 +51,13 @@ function EpubReader() {
   const [locationsGenerated, setLocationsGenerated] = useState(false);
   const [isInitialNavigation, setIsInitialNavigation] = useState(false);
   const [isBookLoading, setIsBookLoading] = useState(false);
+
+  // Touch/swipe state
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+
+  // Minimum swipe distance (in px)
+  const minSwipeDistance = 50;
 
   // Refs
   const titleBarTimerRef = useRef(null);
@@ -371,8 +379,8 @@ function EpubReader() {
 
   // Handle title bar visibility
   useEffect(() => {
-    const handleMouseMove = (e) => {
-      // Check if the mouse is over navigation buttons
+    const handleInteraction = (e) => {
+      // Check if the interaction is over navigation buttons
       const target = e.target;
       const isNavButton =
         target.classList.contains("nav-button") ||
@@ -380,7 +388,7 @@ function EpubReader() {
         target.classList.contains("reader-controls") ||
         target.closest(".reader-controls");
 
-      // Only show title bar if not hovering over navigation buttons
+      // Only show title bar if not interacting with navigation buttons
       if (!isNavButton) {
         setShowTitleBar(true);
 
@@ -395,10 +403,16 @@ function EpubReader() {
       }
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
+    const handleTouchStart = (e) => {
+      handleInteraction(e);
+    };
+
+    window.addEventListener("mousemove", handleInteraction);
+    window.addEventListener("touchstart", handleTouchStart);
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mousemove", handleInteraction);
+      window.removeEventListener("touchstart", handleTouchStart);
       if (titleBarTimerRef.current) {
         clearTimeout(titleBarTimerRef.current);
       }
@@ -435,6 +449,28 @@ function EpubReader() {
       }
     };
   }, [rendition, bookData, book]);
+
+  // Touch/swipe handlers
+  const onTouchStart = (e) => {
+    setTouchEnd(null); // otherwise the swipe is fired even with usual touch events
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX);
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && rendition) {
+      nextBtn(); // Swipe left = next page
+    }
+    if (isRightSwipe && rendition) {
+      backBtn(); // Swipe right = previous page
+    }
+  };
 
   // Apply theme changes
   useEffect(() => {
@@ -1087,6 +1123,9 @@ function EpubReader() {
           id="viewer"
           ref={viewerRef}
           className={`epub-viewer ${isFullscreen ? "h-lvh" : ""}`}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
         />
 
         <button

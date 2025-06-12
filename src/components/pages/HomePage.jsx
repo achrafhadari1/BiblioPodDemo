@@ -224,33 +224,33 @@ export const HomePage = () => {
   }
 
   return (
-    <div className="ml-auto flex w-[96%]">
+    <div className="flex flex-col lg:flex-row lg:ml-auto lg:w-[96%] w-full pt-16 lg:pt-0 pb-20 lg:pb-0">
       {/* Main Content Area */}
-      <div className="flex-1 p-8 overflow-y-auto">
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
+            <div className="text-center lg:text-left">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
                 Happy reading,
               </h1>
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
                 {user?.name || "Harvey"}
               </h1>
-              <p className="text-gray-600 max-w-md">
+              <p className="text-gray-600 max-w-md mx-auto lg:mx-0 text-sm sm:text-base">
                 Find your perfect book and start your reading journey today.
                 Upload your own ePub books or continue with your current
                 reading.
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="relative">
+            <div className="flex justify-center lg:justify-end">
+              <div className="relative w-full max-w-sm lg:max-w-none lg:w-80">
                 <input
                   type="text"
                   placeholder="Search book name, author, edition..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-3 w-80 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="pl-10 pr-4 py-3 w-full border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm sm:text-base"
                 />
                 <svg
                   className="absolute left-3 top-3.5 h-5 w-5 text-gray-400"
@@ -270,7 +270,7 @@ export const HomePage = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 sm:mb-8 justify-center lg:justify-start">
             {(() => {
               const currentBook = sortedFilteredBooks.find(
                 (book) => book.progress > 0 && book.progress < 100
@@ -278,7 +278,7 @@ export const HomePage = () => {
               return currentBook ? (
                 <button
                   onClick={() => router.push(`/read?book=${currentBook.isbn}`)}
-                  className="bg-gray-900 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-gray-800"
+                  className="bg-gray-900 text-white px-4 sm:px-6 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-800 text-sm sm:text-base w-full sm:w-auto"
                 >
                   Continue reading
                   <svg
@@ -296,7 +296,7 @@ export const HomePage = () => {
                 </button>
               ) : null;
             })()}
-            <label className="bg-amber-500 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-amber-600 cursor-pointer">
+            <label className="bg-amber-500 text-white px-4 sm:px-6 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-amber-600 cursor-pointer text-sm sm:text-base w-full sm:w-auto">
               Upload ePub
               <svg
                 width="16"
@@ -404,7 +404,7 @@ export const HomePage = () => {
         ) : (
           <>
             {/* Books Grid using BookDisplay */}
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
               {sortedFilteredBooks.map((book) => (
                 <BookDisplay
                   key={book.isbn}
@@ -438,7 +438,7 @@ export const HomePage = () => {
       </div>
 
       {/* Reader Features Sidebar */}
-      <div className="w-[320px] border-l border-gray-100 flex flex-col overflow-y-auto">
+      <div className="hidden lg:flex lg:w-[320px] border-l border-gray-100 flex-col overflow-y-auto">
         <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
@@ -451,6 +451,27 @@ export const HomePage = () => {
             <span className="text-sm font-medium">
               {user?.name || "Alexander Mark"}
             </span>
+          </div>
+          <div
+            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center cursor-pointer"
+            onClick={handleLogout}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="lucide lucide-log-out-icon lucide-log-out"
+            >
+              <path d="m16 17 5-5-5-5" />
+              <path d="M21 12H9" />
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            </svg>
           </div>
         </div>
 

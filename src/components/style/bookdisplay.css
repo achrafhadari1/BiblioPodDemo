@@ -102,6 +102,23 @@
   border-bottom-right-radius: 11px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
+
+@media screen and (max-width: 768px) {
+  .titlebar {
+    padding: 6px 8px;
+    min-height: 14px;
+  }
+
+  /* Prevent text selection during swipes */
+  .epub-viewer {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
 .titlebar:hover {
   opacity: 1;
 }
@@ -114,6 +131,24 @@
 #metainfo {
   font-size: 1.3em;
   padding-left: 4em;
+}
+
+@media screen and (max-width: 768px) {
+  #title-controls {
+    font-size: 0.9em;
+    gap: 4px;
+  }
+  #metainfo {
+    font-size: 0.8em;
+    padding-left: 1em;
+  }
+  #title-separator {
+    display: none;
+  }
+  .nav-button {
+    font-size: 1.5em;
+    padding: 8px;
+  }
 }
 .reset-btn {
   border: none;

@@ -31,7 +31,7 @@ const ChallengeCard = ({
       <div className="p-6">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="font-['Playfair_Display',serif] text-xl font-bold">
+            <h3 className="font-playfair text-xl font-bold">
               {challenge.title}
             </h3>
             {challenge.description && (

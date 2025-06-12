@@ -169,6 +169,27 @@ code {
   flex-direction: column;
   width: 4%;
 }
+
+/* Mobile responsive navigation buttons */
+@media screen and (max-width: 768px) {
+  .prev,
+  .next {
+    width: 8%;
+    opacity: 0.3;
+    font-size: 1.2em;
+  }
+
+  .prev:hover,
+  .next:hover {
+    opacity: 0.8;
+  }
+
+  /* Show buttons slightly on mobile for better discoverability */
+  .prev,
+  .next {
+    opacity: 0.2;
+  }
+}
 #divider.show {
   display: block;
 }

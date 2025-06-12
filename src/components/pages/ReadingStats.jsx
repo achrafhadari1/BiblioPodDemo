@@ -343,20 +343,20 @@ export const ReadingStats = () => {
   }
 
   return (
-    <div className="flex-1 w-[96%] ml-auto p-8 overflow-auto bg-[#F5F5F0] min-h-screen">
-      <div className="flex items-center justify-between mb-8">
+    <div className="flex-1 w-full lg:w-[96%] lg:ml-auto p-4 sm:p-6 lg:p-8 overflow-auto bg-[#F5F5F0] min-h-screen pt-16 lg:pt-0 pb-20 lg:pb-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
         <div className="flex items-center">
           <button
             onClick={() => router.push("/library")}
-            className="mr-4 p-2 rounded-full hover:bg-gray-100"
+            className="mr-3 sm:mr-4 p-2 rounded-full hover:bg-gray-100"
           >
             <ChevronLeft size={20} />
           </button>
           <div>
-            <h1 className="font-playfair text-3xl font-bold">
+            <h1 className="font-playfair text-2xl sm:text-3xl font-bold">
               Reading Statistics
             </h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
               Using cached data for fast loading - click refresh for latest from
               database
             </p>
@@ -366,10 +366,10 @@ export const ReadingStats = () => {
           <button
             onClick={() => fetchReadingStats(true)}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh from Database
+            <span className="hidden sm:inline">Refresh from Database</span>
           </button>
           {lastRefresh && (
             <p className="text-xs text-gray-500">

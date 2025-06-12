@@ -41,8 +41,8 @@ const ChallengeDetailsModal = ({
   const isLoading = challenge && !challenge.hasOwnProperty("books");
 
   return (
-    <div className="fixed min-h-screen inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-lg max-w-4xl w-full p-6 overflow-y-auto max-h-[90vh] relative animate-fadeIn">
+    <div className="fixed min-h-screen inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-xl shadow-lg max-w-4xl w-full p-4 sm:p-6 overflow-y-auto max-h-[95vh] sm:max-h-[90vh] relative animate-fadeIn">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
@@ -52,18 +52,20 @@ const ChallengeDetailsModal = ({
           </div>
         ) : (
           <>
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="font-['Playfair_Display',serif] text-2xl font-bold">
+            <div className="flex justify-between items-start mb-4 sm:mb-6">
+              <div className="flex-1 pr-4">
+                <h2 className="font-playfair text-xl sm:text-2xl font-bold">
                   {challenge.title}
                 </h2>
                 {challenge.description && (
-                  <p className="text-gray-600 mt-1">{challenge.description}</p>
+                  <p className="text-gray-600 mt-1 text-sm sm:text-base">
+                    {challenge.description}
+                  </p>
                 )}
               </div>
               <button
                 onClick={onClose}
-                className="p-2 rounded-full hover:bg-gray-100"
+                className="p-2 rounded-full hover:bg-gray-100 flex-shrink-0"
               >
                 <ArrowLeft size={20} className="transform rotate-45" />
               </button>
@@ -128,19 +130,19 @@ const ChallengeDetailsModal = ({
 
             {/* Books in Challenge */}
             <div className="mb-6">
-              <h3 className="font-['Playfair_Display',serif] text-xl font-bold mb-4">
+              <h3 className="font-playfair text-xl font-bold mb-4">
                 Books in this Challenge
               </h3>
 
               {challenge.books && challenge.books.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {challenge.books.map((book) => {
+                  {challenge.books.map((book, index) => {
                     // book is already a full book object from the processed challenge data
-                    if (!book || !book.isbn) {
+                    if (!book || !book.isbn || typeof book !== "object") {
                       // If book is invalid, show placeholder
                       return (
                         <div
-                          key={book?.isbn || Math.random()}
+                          key={book?.isbn || `invalid-${index}`}
                           className="flex items-center bg-gray-50 rounded-lg p-3"
                         >
                           <div className="w-16 h-20 bg-gray-200 rounded-md mr-3 flex items-center justify-center">
@@ -151,13 +153,16 @@ const ChallengeDetailsModal = ({
                               Book not found
                             </h4>
                             <p className="text-sm text-gray-400">
-                              Invalid book data
+                              Invalid book data:{" "}
+                              {typeof book === "string" ? book : "Unknown"}
                             </p>
                           </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              onRemoveBookFromChallenge(book?.isbn);
+                              onRemoveBookFromChallenge(
+                                typeof book === "string" ? book : book?.isbn
+                              );
                             }}
                             className="p-1.5 rounded-full hover:bg-gray-200 text-gray-500"
                           >
@@ -182,8 +187,12 @@ const ChallengeDetailsModal = ({
                           className="w-16 h-20 object-cover rounded-md mr-3 shadow-sm"
                         />
                         <div className="flex-1">
-                          <h4 className="font-medium">{book.title}</h4>
-                          <p className="text-sm text-gray-600">{book.author}</p>
+                          <h4 className="font-medium">
+                            {String(book.title || "Unknown Title")}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {String(book.author || "Unknown Author")}
+                          </p>
                         </div>
                         <button
                           onClick={(e) => {
@@ -212,7 +221,7 @@ const ChallengeDetailsModal = ({
 
             {/* Add Books Section */}
             <div className="mb-8">
-              <h3 className="font-['Playfair_Display',serif] text-xl font-bold mb-4">
+              <h3 className="font-playfair text-xl font-bold mb-4">
                 Add Books to Challenge
               </h3>
 
@@ -227,7 +236,7 @@ const ChallengeDetailsModal = ({
                   .slice(0, 6)
                   .map((book) => (
                     <div
-                      key={book.id || book.isbn}
+                      key={book.isbn}
                       className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md cursor-pointer transition-shadow"
                       onClick={() => onAddBookToChallenge(book)}
                     >
@@ -243,8 +252,12 @@ const ChallengeDetailsModal = ({
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end">
                           <div className="p-3 text-white">
-                            <h4 className="font-medium">{book.title}</h4>
-                            <p className="text-sm opacity-90">{book.author}</p>
+                            <h4 className="font-medium">
+                              {String(book.title || "Unknown Title")}
+                            </h4>
+                            <p className="text-sm opacity-90">
+                              {String(book.author || "Unknown Author")}
+                            </p>
                           </div>
                         </div>
                         <div className="absolute top-2 right-2 bg-amber-500 text-white p-1.5 rounded-full shadow-sm">
@@ -272,18 +285,19 @@ const ChallengeDetailsModal = ({
               )}
             </div>
 
-            <div className="flex justify-between border-t pt-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-3 border-t pt-4">
               <button
                 onClick={() => onDeleteChallenge(challenge.id)}
-                className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex items-center gap-2"
+                className="w-full sm:w-auto px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex items-center justify-center gap-2 order-2 sm:order-1"
               >
                 <Trash2 size={16} />
-                Delete Challenge
+                <span className="hidden sm:inline">Delete Challenge</span>
+                <span className="sm:hidden">Delete</span>
               </button>
 
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                className="w-full sm:w-auto px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors order-1 sm:order-2"
               >
                 Close
               </button>

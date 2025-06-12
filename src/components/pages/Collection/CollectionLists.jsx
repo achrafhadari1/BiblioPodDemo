@@ -162,7 +162,9 @@ export const CollectionLists = () => {
 
     try {
       // Delete collection using IndexedDB
-      const success = await bookStorageDB.deleteCollection(collectionToDelete.id);
+      const success = await bookStorageDB.deleteCollection(
+        collectionToDelete.id
+      );
 
       if (success) {
         // Update state to remove the deleted collection
@@ -254,20 +256,20 @@ export const CollectionLists = () => {
 
   if (loading) {
     return (
-      <div className=" w-[96%] ml-auto flex-1 p-8 overflow-auto">
-        <div className="flex justify-between items-center mb-8">
+      <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
           <div className="flex items-center">
             <button
               onClick={() => router.push("/library")}
-              className="mr-4 p-2 rounded-full hover:bg-gray-100"
+              className="mr-3 sm:mr-4 p-2 rounded-full hover:bg-gray-100"
             >
               <ChevronLeft size={20} />
             </button>
-            <h1 className="font-playfair text-3xl font-bold">
+            <h1 className="font-playfair text-2xl sm:text-3xl font-bold">
               Your Collections{" "}
             </h1>
 
-            <div className="ml-6 flex gap-2">
+            <div className="ml-4 sm:ml-6 flex gap-2">
               <div className="p-2 rounded-lg bg-gray-100 animate-pulse w-8 h-8"></div>
               <div className="p-2 rounded-lg bg-gray-100 animate-pulse w-8 h-8"></div>
             </div>
@@ -292,40 +294,41 @@ export const CollectionLists = () => {
   }
 
   return (
-    <div className="w-[96%] ml-auto flex-1 p-8 overflow-auto">
+    <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
       {/* Header */}
-      <div className="flex flex-col gap-6 mb-8">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex">
+      <div className="flex flex-col gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+          <div className="flex-1">
+            <div className="flex items-center">
               <button
                 onClick={() => router.push("/library")}
-                className="mr-4 p-2 rounded-full hover:bg-gray-100"
+                className="mr-3 sm:mr-4 p-2 rounded-full hover:bg-gray-100"
               >
                 <ChevronLeft size={20} />
               </button>
-              <h1 className="font-playfair text-3xl font-bold text-gray-900 mb-2">
+              <h1 className="font-playfair text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
                 Your Collections
               </h1>
             </div>
-            <p className="text-gray-600">
+            <p className="text-gray-600 text-sm sm:text-base ml-12 sm:ml-16">
               Organize and manage your book collections
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex justify-center sm:justify-end">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="bg-amber-500 text-white px-6 py-3 rounded-xl flex items-center gap-2 text-sm font-medium hover:bg-amber-600 transition-colors shadow-sm"
+              className="bg-amber-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl flex items-center gap-2 text-sm font-medium hover:bg-amber-600 transition-colors shadow-sm w-full sm:w-auto justify-center"
             >
               <Plus size={18} />
-              New Collection
+              <span className="hidden sm:inline">New Collection</span>
+              <span className="sm:hidden">New</span>
             </button>
           </div>
         </div>
 
         {/* Search and Controls */}
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div className="flex-1">
             <div className="relative">
               <Search
                 size={20}
@@ -336,7 +339,7 @@ export const CollectionLists = () => {
                 placeholder="Search collections..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent w-80"
+                className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent w-full sm:max-w-sm"
               />
             </div>
           </div>

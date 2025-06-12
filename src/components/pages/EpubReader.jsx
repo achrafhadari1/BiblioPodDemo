@@ -64,7 +64,6 @@ function EpubReader() {
   const [isBookLoading, setIsBookLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState(null);
-  const [touchDebug, setTouchDebug] = useState("");
 
   // Touch/swipe state - using refs to avoid race conditions
   const touchStartRef = useRef(null);
@@ -134,7 +133,6 @@ function EpubReader() {
     touchEndRef.current = null;
     isSwipingRef.current = true;
 
-    setTouchDebug(`Touch Start: ${startX}`);
     console.log(
       "[SWIPE] Touch start detected at X:",
       startX,
@@ -203,10 +201,6 @@ function EpubReader() {
       const isLeftSwipe = distance > minSwipeDistance;
       const isRightSwipe = distance < -minSwipeDistance;
 
-      setTouchDebug(
-        `Touch End: distance=${distance}, left=${isLeftSwipe}, right=${isRightSwipe}`
-      );
-
       console.log("[SWIPE] Touch end detected", {
         touchStart: touchStartRef.current,
         touchEnd: endX,
@@ -250,9 +244,12 @@ function EpubReader() {
 
   // Attach touch event listeners - simplified to avoid duplicate events
   useEffect(() => {
-    if (!book || !isMobile) return;
+    if (!book || !isMobile || !rendition) return;
 
-    console.log("[SWIPE] Attaching touch event listeners for mobile");
+    console.log("[SWIPE] Attaching touch event listeners for mobile", {
+      currentChapter,
+      hasRendition: !!rendition,
+    });
 
     // Use a single target element to avoid duplicate events
     // Priority: viewer > main container > document
@@ -313,9 +310,42 @@ function EpubReader() {
     // Check for iframe after a delay to allow epub.js to load
     const iframeTimer = setTimeout(checkForIframe, 1500);
 
+    // Also check again after a longer delay in case of chapter navigation
+    const iframeTimer2 = setTimeout(checkForIframe, 3000);
+
+    // Set up a mutation observer to detect when iframe content changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === "childList") {
+          // Check if an iframe was added or modified
+          const addedNodes = Array.from(mutation.addedNodes);
+          const hasIframe = addedNodes.some(
+            (node) =>
+              node.nodeType === Node.ELEMENT_NODE &&
+              (node.tagName === "IFRAME" || node.querySelector("iframe"))
+          );
+
+          if (hasIframe) {
+            console.log("[SWIPE] Iframe detected via mutation observer");
+            setTimeout(checkForIframe, 500); // Small delay to ensure iframe is ready
+          }
+        }
+      });
+    });
+
+    // Observe the viewer element for changes
+    if (viewer) {
+      observer.observe(viewer, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
     return () => {
       console.log("[SWIPE] Removing touch event listeners");
       clearTimeout(iframeTimer);
+      clearTimeout(iframeTimer2);
+      observer.disconnect();
 
       if (targetElement) {
         targetElement.removeEventListener("touchstart", onTouchStart, {
@@ -334,7 +364,15 @@ function EpubReader() {
       touchStartRef.current = null;
       touchEndRef.current = null;
     };
-  }, [book, isMobile, onTouchStart, onTouchMove, onTouchEnd]);
+  }, [
+    book,
+    isMobile,
+    rendition,
+    currentChapter,
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd,
+  ]);
 
   // Cleanup swipe state on unmount
   useEffect(() => {
@@ -1053,6 +1091,10 @@ function EpubReader() {
 
         // Reapply font settings on each page change
         applyFontSettings();
+
+        // Reset swipe state when location changes (e.g., chapter navigation)
+        console.log("[SWIPE] Location changed - resetting swipe state");
+        resetSwipeState();
       });
 
       return () => {
@@ -1369,27 +1411,6 @@ function EpubReader() {
           className={`epub-viewer ${isFullscreen ? "h-lvh" : ""}`}
         />
 
-        {/* Swipe feedback indicator for mobile */}
-        {isMobile && swipeDirection && (
-          <div
-            className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
-                       bg-black bg-opacity-70 text-white px-4 py-2 rounded-full 
-                       flex items-center gap-2 z-50 animate-pulse`}
-          >
-            {swipeDirection === "left" ? (
-              <>
-                <GrNext className="text-lg" />
-                <span>Next</span>
-              </>
-            ) : (
-              <>
-                <GrPrevious className="text-lg" />
-                <span>Previous</span>
-              </>
-            )}
-          </div>
-        )}
-
         {/* Navigation buttons - hidden on mobile devices since swipe is available */}
         {!isMobile && (
           <>
@@ -1431,15 +1452,6 @@ function EpubReader() {
           <span>
             {currentPage} of {totalPages}
           </span>
-          {isMobile && (
-            <span className="text-xs opacity-70 mt-1">Swipe to navigate</span>
-          )}
-          {/* Debug info - remove in production */}
-          {touchDebug && (
-            <span className="text-xs bg-red-500 text-white px-2 py-1 rounded mt-1">
-              {touchDebug}
-            </span>
-          )}
         </div>
       </div>
     </div>

@@ -176,10 +176,10 @@ export const ReaderMenu = ({
           isIconOnly
           onClick={() => router.push("/library")}
           variant="light"
-          className="text-foreground hover:bg-default-100 transition-colors"
+          className="text-foreground hover:bg-default-100 transition-all duration-200"
           aria-label="Go to home"
         >
-          <BiHomeAlt2 className="w-5 h-5" />
+          <BiHomeAlt2 className="w-5 h-5 text-black" />
         </Button>
 
         {/* Menu Drawer */}
@@ -188,10 +188,10 @@ export const ReaderMenu = ({
             <Button
               isIconOnly
               variant="light"
-              className="text-foreground hover:bg-default-100 transition-colors"
+              className="text-foreground hover:bg-default-100 transition-all duration-200"
               aria-label="Open menu"
             >
-              <IoMdMenu className="w-5 h-5" />
+              <IoMdMenu className="w-5 h-5 text-black" />
             </Button>
           </DrawerTrigger>
 

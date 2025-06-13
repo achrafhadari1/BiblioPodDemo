@@ -13,10 +13,12 @@ import { bookStorageDB } from "../../utils/bookStorageDB";
 import { AiOutlineFullscreen } from "react-icons/ai";
 import { GrNext, GrPrevious } from "react-icons/gr";
 import { FiMoon } from "react-icons/fi";
-import { CircularProgress } from "@nextui-org/react";
+import { CircularProgress, Button } from "@nextui-org/react";
 
 import TextSelectionCoordinates from "../Modals/TextSelectionCoordinates";
+import { ReaderMenu } from "../Modals/ReaderMenu";
 import { EpubReaderSettings } from "../EpubReaderComponents/EpubReaderSettings";
+import { userPreferencesDB } from "../../utils/userPreferences";
 
 // Utility function to detect mobile devices
 const isMobileDevice = () => {
@@ -31,8 +33,7 @@ const isMobileDevice = () => {
 
 // Default reader settings
 const DEFAULT_SETTINGS = {
-  fontSize:
-    typeof window !== "undefined" && window.innerWidth <= 768 ? "18px" : "28px",
+  fontSize: 0.7, // This matches the default in userPreferencesDB
   fontFamily: "Lora",
   isDarkTheme: false,
 };
@@ -46,6 +47,7 @@ function EpubReader() {
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [fontSize, setFontSize] = useState(DEFAULT_SETTINGS.fontSize);
   const [fontFamily, setFontFamily] = useState(DEFAULT_SETTINGS.fontFamily);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [currentCFI, setCurrentCFI] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [book, setBook] = useState(null);
@@ -386,37 +388,56 @@ function EpubReader() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const settings = await bookStorageDB.getReaderSettings();
-        setIsDarkTheme(settings.isDarkTheme ?? DEFAULT_SETTINGS.isDarkTheme);
-        setFontSize(settings.fontSize || DEFAULT_SETTINGS.fontSize);
-        setFontFamily(settings.fontFamily || DEFAULT_SETTINGS.fontFamily);
+        // Initialize user preferences database
+        await userPreferencesDB.init();
+
+        // Load preferences
+        const theme = await userPreferencesDB.getTheme();
+        const savedFontSize = await userPreferencesDB.getFontSize();
+        const savedFontFamily = await userPreferencesDB.getFontFamily();
+
+        console.log("Loaded preferences:", {
+          theme,
+          savedFontSize,
+          savedFontFamily,
+        });
+
+        setIsDarkTheme(theme === "dark");
+        setFontSize(savedFontSize || DEFAULT_SETTINGS.fontSize);
+        setFontFamily(savedFontFamily || DEFAULT_SETTINGS.fontFamily);
       } catch (error) {
         console.error("Error loading saved settings:", error);
         // Use defaults if there's an error
         setIsDarkTheme(DEFAULT_SETTINGS.isDarkTheme);
         setFontSize(DEFAULT_SETTINGS.fontSize);
         setFontFamily(DEFAULT_SETTINGS.fontFamily);
+      } finally {
+        setPreferencesLoaded(true);
       }
     };
     loadSettings();
   }, []);
 
-  // Save user preferences to IndexedDB when they change
+  // Save user preferences to IndexedDB when they change (only after initial load)
   useEffect(() => {
+    if (!preferencesLoaded) return; // Don't save during initial load
+
     const saveSettings = async () => {
       try {
-        const settings = {
+        console.log("Saving preferences:", {
           isDarkTheme,
           fontSize,
           fontFamily,
-        };
-        await bookStorageDB.setReaderSettings(settings);
+        });
+        await userPreferencesDB.setTheme(isDarkTheme ? "dark" : "light");
+        await userPreferencesDB.setFontSize(fontSize);
+        await userPreferencesDB.setFontFamily(fontFamily);
       } catch (error) {
         console.error("Error saving settings:", error);
       }
     };
     saveSettings();
-  }, [isDarkTheme, fontSize, fontFamily]);
+  }, [isDarkTheme, fontSize, fontFamily, preferencesLoaded]);
 
   // Font loading verification
   useEffect(() => {
@@ -785,7 +806,7 @@ function EpubReader() {
 
   // Apply theme changes
   useEffect(() => {
-    if (rendition && rendition.themes) {
+    if (rendition && rendition.themes && preferencesLoaded) {
       if (isDarkTheme) {
         if (isDarkClicked > 0) {
           rendition.themes.override("transition", "0.3s ease-in-out");
@@ -800,21 +821,47 @@ function EpubReader() {
         rendition.themes.override("color", "black");
       }
     }
-  }, [isDarkTheme, isDarkClicked, rendition]);
+  }, [isDarkTheme, isDarkClicked, rendition, preferencesLoaded]);
 
   // Apply font size changes
   useEffect(() => {
-    if (rendition && rendition.themes) {
+    if (rendition && rendition.themes && preferencesLoaded) {
       rendition.themes.fontSize(fontSize);
     }
-  }, [fontSize, rendition]);
+  }, [fontSize, rendition, preferencesLoaded]);
 
   // Apply font family changes
   useEffect(() => {
-    if (rendition && rendition.themes) {
+    console.log("Font family effect triggered:", {
+      fontFamily,
+      rendition: !!rendition,
+      preferencesLoaded,
+    });
+    if (rendition && preferencesLoaded) {
+      console.log("Applying font settings via effect");
       applyFontSettings();
     }
-  }, [fontFamily, rendition]);
+  }, [fontFamily, rendition, preferencesLoaded]);
+
+  // Listen for new views being rendered and apply fonts to them
+  useEffect(() => {
+    if (!rendition || !preferencesLoaded) return;
+
+    const handleViewRendered = () => {
+      console.log("New view rendered, applying font settings");
+      // Small delay to ensure the iframe is fully loaded
+      setTimeout(() => {
+        applyFontSettings();
+      }, 100);
+    };
+
+    // Listen for when new views are rendered
+    rendition.on("rendered", handleViewRendered);
+
+    return () => {
+      rendition.off("rendered", handleViewRendered);
+    };
+  }, [rendition, preferencesLoaded, fontFamily]);
 
   // Fetch and apply annotations
   useEffect(() => {
@@ -907,32 +954,162 @@ function EpubReader() {
     }
   };
 
+  // Inject font definitions into epub iframe
+  const injectFontDefinitions = (rendition) => {
+    if (!rendition) return;
+
+    const fontDefinitions = `
+      @font-face {
+        font-family: "Alegreya";
+        src: url("/fonts/alegreya/Alegreya-Regular.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Lora";
+        src: url("/fonts/lora/Lora.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Atkinson";
+        src: url("/fonts/atkinson/Atkinson-Hyperlegible-Regular-102a.woff2") format("woff2"),
+             url("/fonts/atkinson/Atkinson-Hyperlegible-Regular-102.woff") format("woff"),
+             url("/fonts/atkinson/Atkinson-Hyperlegible-Regular-102.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Bookerly";
+        src: url("/fonts/bookerley/Bookerly.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Literata";
+        src: url("/fonts/literata/Literata-Regular.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+    `;
+
+    // Function to inject fonts into iframe
+    const injectIntoIframe = () => {
+      const iframe = document.querySelector("#viewer iframe");
+      if (iframe && iframe.contentDocument) {
+        try {
+          const iframeDoc = iframe.contentDocument;
+          let styleElement = iframeDoc.getElementById("custom-fonts");
+
+          if (!styleElement) {
+            styleElement = iframeDoc.createElement("style");
+            styleElement.id = "custom-fonts";
+            styleElement.textContent = fontDefinitions;
+            iframeDoc.head.appendChild(styleElement);
+            console.log("[FONT] Font definitions injected into iframe head");
+          }
+        } catch (e) {
+          console.warn("[FONT] Could not access iframe document:", e);
+        }
+      }
+    };
+
+    // Try multiple approaches to inject fonts
+
+    // Method 1: Inject immediately if iframe exists
+    setTimeout(injectIntoIframe, 100);
+
+    // Method 2: Inject on rendered event
+    rendition.on("rendered", injectIntoIframe);
+
+    // Method 3: Inject on locationChanged event (for navigation)
+    rendition.on("locationChanged", injectIntoIframe);
+
+    // Method 4: Use mutation observer to detect iframe changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === "childList") {
+          const addedNodes = Array.from(mutation.addedNodes);
+          const hasIframe = addedNodes.some(
+            (node) =>
+              node.nodeType === Node.ELEMENT_NODE &&
+              (node.tagName === "IFRAME" || node.querySelector("iframe"))
+          );
+
+          if (hasIframe) {
+            setTimeout(injectIntoIframe, 100);
+          }
+        }
+      });
+    });
+
+    const viewer = document.getElementById("viewer");
+    if (viewer) {
+      observer.observe(viewer, {
+        childList: true,
+        subtree: true,
+      });
+    }
+  };
+
   // Apply font settings to all elements
   const applyFontSettings = () => {
-    if (!rendition || !rendition.themes) return;
+    if (!rendition) {
+      console.log("Cannot apply font settings - rendition not available");
+      return;
+    }
+
+    console.log("Applying font settings for:", fontFamily);
+
+    // First inject font definitions
+    injectFontDefinitions(rendition);
 
     const fontWithFallback = getFontWithFallback(fontFamily);
+    console.log("Font with fallback:", fontWithFallback);
 
-    rendition.themes.default({
-      body: {
-        "font-family": `${fontWithFallback} !important`,
-      },
-      p: {
-        "font-family": `${fontWithFallback} !important`,
-      },
-      div: {
-        "font-family": `${fontWithFallback} !important`,
-      },
-      span: {
-        "font-family": `${fontWithFallback} !important`,
-      },
-      "h1, h2, h3, h4, h5, h6": {
-        "font-family": `${fontWithFallback} !important`,
-      },
-      "*": {
-        "font-family": `${fontWithFallback} !important`,
-      },
+    // Get all iframes in the rendition
+    const iframes = rendition.manager.views._views;
+
+    iframes.forEach((view) => {
+      if (view && view.iframe && view.iframe.contentDocument) {
+        const doc = view.iframe.contentDocument;
+
+        // Remove any existing font override style
+        const existingStyle = doc.getElementById("font-override-style");
+        if (existingStyle) {
+          existingStyle.remove();
+        }
+
+        // Create new style element with font override
+        const style = doc.createElement("style");
+        style.id = "font-override-style";
+        style.textContent = `
+          * {
+            font-family: ${fontWithFallback} !important;
+          }
+          body, p, div, span, h1, h2, h3, h4, h5, h6 {
+            font-family: ${fontWithFallback} !important;
+          }
+        `;
+
+        // Inject the style into the iframe head
+        if (doc.head) {
+          doc.head.appendChild(style);
+          console.log("Font style injected into iframe");
+        }
+      }
     });
+
+    console.log("Font settings applied successfully via direct CSS injection");
   };
 
   // Find spine index manually (since indexOf is not available)
@@ -1006,6 +1183,9 @@ function EpubReader() {
       console.log("[DEBUG] Rendition created successfully");
 
       // Apply global font styles before displaying content
+      // First inject font definitions
+      injectFontDefinitions(newRendition);
+
       const fontWithFallback = getFontWithFallback(fontFamily);
 
       newRendition.themes.default({
@@ -1312,7 +1492,7 @@ function EpubReader() {
 
     // Save to IndexedDB
     try {
-      await bookStorageDB.updateReaderSetting("isDarkTheme", newThemeState);
+      await userPreferencesDB.setTheme(newThemeState ? "dark" : "light");
     } catch (error) {
       console.error("Error saving theme setting:", error);
     }
@@ -1324,7 +1504,7 @@ function EpubReader() {
 
     // Save to IndexedDB
     try {
-      await bookStorageDB.updateReaderSetting("fontSize", newSize);
+      await userPreferencesDB.setFontSize(newSize);
     } catch (error) {
       console.error("Error saving font size setting:", error);
     }
@@ -1332,11 +1512,55 @@ function EpubReader() {
 
   // Update font family
   const updateFontFamily = async (newFont) => {
+    console.log("Updating font family to:", newFont);
     setFontFamily(newFont);
+
+    // Apply font immediately if rendition is available
+    if (rendition) {
+      console.log("Applying font immediately:", newFont);
+
+      // First inject font definitions
+      injectFontDefinitions(rendition);
+
+      const fontWithFallback = getFontWithFallback(newFont);
+
+      // Get all iframes in the rendition and inject CSS directly
+      const iframes = rendition.manager.views._views;
+
+      iframes.forEach((view) => {
+        if (view && view.iframe && view.iframe.contentDocument) {
+          const doc = view.iframe.contentDocument;
+
+          // Remove any existing font override style
+          const existingStyle = doc.getElementById("font-override-style");
+          if (existingStyle) {
+            existingStyle.remove();
+          }
+
+          // Create new style element with font override
+          const style = doc.createElement("style");
+          style.id = "font-override-style";
+          style.textContent = `
+            * {
+              font-family: ${fontWithFallback} !important;
+            }
+            body, p, div, span, h1, h2, h3, h4, h5, h6 {
+              font-family: ${fontWithFallback} !important;
+            }
+          `;
+
+          // Inject the style into the iframe head
+          if (doc.head) {
+            doc.head.appendChild(style);
+            console.log("Font style injected immediately into iframe");
+          }
+        }
+      });
+    }
 
     // Save to IndexedDB
     try {
-      await bookStorageDB.updateReaderSetting("fontFamily", newFont);
+      await userPreferencesDB.setFontFamily(newFont);
     } catch (error) {
       console.error("Error saving font family setting:", error);
     }
@@ -1356,12 +1580,14 @@ function EpubReader() {
   };
 
   // Loading state
-  if (loading) {
+  if (loading || !preferencesLoaded) {
     return (
       <div className="h-screen w-full flex flex-col justify-center items-center gap-4">
         <CircularProgress size="lg" color="default" aria-label="Loading" />
         <div className="text-center">
-          <p className="text-lg font-medium">{loadingMessage}</p>
+          <p className="text-lg font-medium">
+            {!preferencesLoaded ? "Loading preferences..." : loadingMessage}
+          </p>
           <p className="text-sm text-gray-500 mt-2">
             Please wait while we prepare your book...
           </p>
@@ -1390,18 +1616,26 @@ function EpubReader() {
         isDarkTheme ? "dark" : "default"
       }`}
     >
+      {/* Text selection UI - independent of titlebar opacity */}
+      <TextSelectionCoordinates
+        bookValue={bookValue}
+        book={book}
+        updatePageInfo={() => updatePageInfo()}
+        rendition={rendition}
+        saveReadingProgress={saveReadingProgress}
+        setForceUpdate={setForceUpdate}
+      />
       <div
         className={`titlebar reader-controls ${
           showTitleBar ? "" : "opacity-low"
         } transition-opacity duration-300`}
       >
-        <TextSelectionCoordinates
-          bookValue={bookValue}
+        <ReaderMenu
           book={book}
-          updatePageInfo={() => updatePageInfo()}
-          rendition={rendition}
+          bookValue={bookValue}
           saveReadingProgress={saveReadingProgress}
-          setForceUpdate={setForceUpdate}
+          rendition={rendition}
+          selectedColor={null}
         />
 
         <div id="metainfo">
@@ -1410,14 +1644,15 @@ function EpubReader() {
           <span id="chapter-title">{currentChapter || bookData.title}</span>
         </div>
         <div id="title-controls">
-          <button
+          <Button
+            isIconOnly
             onClick={toggleTheme}
-            id="darkmode"
-            className="cursor icon-resize-full"
+            variant="light"
+            className="text-foreground hover:bg-default-100 transition-all duration-200"
             aria-label="Toggle dark mode"
           >
-            <FiMoon />
-          </button>
+            <FiMoon className="w-5 h-5 text-black" />
+          </Button>
           <EpubReaderSettings
             rendition={rendition}
             fontSize={fontSize}
@@ -1425,14 +1660,15 @@ function EpubReader() {
             updateFontSize={updateFontSize}
             updateFontFamily={updateFontFamily}
           />
-          <button
-            id="fullscreen"
+          <Button
+            isIconOnly
             onClick={toggleFullscreen}
-            className="icon-resize-full cursor"
+            variant="light"
+            className="text-foreground hover:bg-default-100 transition-all duration-200"
             aria-label="Toggle fullscreen"
           >
-            <AiOutlineFullscreen />
-          </button>
+            <AiOutlineFullscreen className="w-5 h-5 text-black" />
+          </Button>
         </div>
       </div>
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { ReaderMenu } from "./ReaderMenu";
 import { toast } from "sonner";
 import { Bookmark, X } from "lucide-react";
 import { bookStorageDB } from "../../utils/bookStorageDB";
@@ -101,10 +100,30 @@ const TextSelectionCoordinates = ({
         const absoluteX = rect.x + iframeRect.left;
         const absoluteY = rect.y + iframeRect.top;
 
-        // Calculate position for the color picker to appear above the text
-        // Adjust the Y position to be above the selection
-        const x = absoluteX + 50;
-        const y = absoluteY - 120; // Position above the text
+        // Calculate position for the color picker
+        // Get titlebar height to account for it in positioning
+        const titlebar = document.querySelector(".titlebar");
+        const titlebarHeight = titlebar ? titlebar.offsetHeight : 0;
+
+        // Calculate preferred position above the text
+        const preferredY = absoluteY - 120;
+        const minY = titlebarHeight + 10; // Minimum distance from titlebar
+        const maxY = window.innerHeight - 200; // Leave space at bottom
+
+        // Position the color picker, ensuring it's visible and not behind titlebar
+        const x = Math.min(Math.max(50, absoluteX), window.innerWidth - 200); // Keep within viewport
+        let y;
+
+        if (preferredY >= minY) {
+          // Position above text if there's enough space
+          y = preferredY;
+        } else if (absoluteY + rect.height + 130 <= maxY) {
+          // Position below text if above doesn't work
+          y = absoluteY + rect.height + 10;
+        } else {
+          // Fallback: position at minimum safe distance from titlebar
+          y = minY;
+        }
 
         setSelectedTextCoords({ x, y });
         setSelectedText(range.toString());
@@ -211,20 +230,12 @@ const TextSelectionCoordinates = ({
 
   return (
     <>
-      <ReaderMenu
-        book={book}
-        bookValue={bookValue}
-        saveReadingProgress={saveReadingProgress}
-        rendition={rendition}
-        selectedColor={selectedColor}
-        className="icon-bookmark-empty"
-      />
-
+      {/* High z-index (z-50/z-60) ensures color picker appears above titlebar (z-10) */}
       {isColorBoxOpen && (
-        <div className="fixed inset-0 z-20 pointer-events-none">
+        <div className="fixed inset-0 z-50 pointer-events-none opacity-100">
           <div
             ref={colorBoxRef}
-            className="absolute z-30 animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto"
+            className="absolute z-[60] animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto"
             style={{
               left: `${selectedTextCoords.x}px`,
               top: `${selectedTextCoords.y}px`,
@@ -232,7 +243,7 @@ const TextSelectionCoordinates = ({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative p-3 rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="relative p-3 rounded-lg bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
               <button
                 onClick={closeColorPicker}
                 className="absolute -top-2 -right-2 rounded-full bg-gray-100 dark:bg-gray-700 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"

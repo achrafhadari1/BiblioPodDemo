@@ -11,7 +11,7 @@ import {
 } from "../ui/drawer";
 import { Button } from "../ui/button";
 import { IoSettingsOutline } from "react-icons/io5";
-import { Slider } from "@nextui-org/react";
+import { Slider, Button as NextUIButton } from "@nextui-org/react";
 import "../../styles/fonts.css";
 
 export const EpubReaderSettings = ({
@@ -66,15 +66,22 @@ export const EpubReaderSettings = ({
   return (
     <>
       <Drawer>
-        <DrawerTrigger className="h-0">
-          <IoSettingsOutline className="cursor-pointer icon-cog " />
+        <DrawerTrigger asChild>
+          <NextUIButton
+            isIconOnly
+            variant="light"
+            className="text-foreground hover:bg-default-100 transition-all duration-200 dark:text-white dark:hover:bg-default-200/20"
+            aria-label="Open settings"
+          >
+            <IoSettingsOutline className="w-5 h-5 text-black " />
+          </NextUIButton>
         </DrawerTrigger>
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>SETTINGS</DrawerTitle>
           </DrawerHeader>
           <div className="flex-col flex w-full items-center mb-8 gap-8">
-            <div className="flex flex-col gap-6 w-full max-w-md">
+            <div className="flex flex-col gap-6 px-8 w-full max-w-md">
               <Slider
                 size="sm"
                 step={0.1}

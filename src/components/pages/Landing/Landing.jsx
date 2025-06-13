@@ -250,45 +250,6 @@ export const Landing = () => {
         )}
       </nav>
 
-      {/* Educational Project Banner */}
-      <div
-        className={`${darkMode ? "bg-amber-900/20" : "bg-amber-50"} border-b ${
-          darkMode ? "border-amber-800" : "border-amber-200"
-        }`}
-      >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex flex-col sm:flex-row items-center justify-center text-center gap-2">
-            <div className="flex items-center gap-2 text-xs sm:text-sm">
-              <span className="text-amber-600">🎓</span>
-              <span
-                className={`font-medium ${
-                  darkMode ? "text-amber-200" : "text-amber-800"
-                }`}
-              >
-                Showcase Demo Notice:
-              </span>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-              <span
-                className={`${
-                  darkMode ? "text-amber-300" : "text-amber-700"
-                } text-center`}
-              >
-                This is a demo version using localStorage due to hosting budget
-                constraints. Upload your own ePub files to test the reading
-                functionality.
-              </span>
-              <Link
-                href="/terms"
-                className="text-amber-600 hover:text-amber-700 underline whitespace-nowrap"
-              >
-                Learn more
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div
@@ -319,10 +280,11 @@ export const Landing = () => {
               </p>
               <div className="mb-6 sm:mb-8 p-3 sm:p-4 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-xs sm:text-sm text-amber-800">
-                  <strong>📚 Educational Project:</strong> This platform is
+                  <strong>📚 Privacy-First Reading:</strong> This platform is
                   designed for managing your legally purchased EPUB collection
-                  as part of a school project. Please respect copyright laws and
-                  only upload books you own.
+                  with complete privacy. All data is stored locally in your
+                  browser. Please respect copyright laws and only upload books
+                  you own.
                 </p>
               </div>
               <div className="flex justify-center lg:justify-start mb-6 sm:mb-8">
@@ -342,7 +304,7 @@ export const Landing = () => {
               <div className="flex items-center justify-center lg:justify-start gap-2 text-xs sm:text-sm opacity-70">
                 <Heart size={12} className="sm:w-3.5 sm:h-3.5 text-amber-600" />
                 <span className="text-center lg:text-left">
-                  Educational project made for books and learning
+                  Privacy-first digital library for book lovers
                 </span>
               </div>
             </div>
@@ -836,12 +798,12 @@ export const Landing = () => {
                 />
               </div>
               <p className="max-w-xs mx-auto lg:mx-0 text-sm opacity-70">
-                An educational project demonstrating digital library management
-                for legally purchased EPUB collections.
+                A privacy-first digital library platform for managing your
+                legally purchased EPUB collections locally in your browser.
               </p>
               <div className="mt-4 text-xs">
                 <span className="opacity-50">
-                  Built for academic purposes for books and learning.
+                  Built for book lovers who value privacy and control.
                 </span>
               </div>
             </div>
@@ -950,7 +912,7 @@ export const Landing = () => {
                   </li>
                   <li>
                     <span className="text-xs opacity-60">
-                      Educational Project
+                      Privacy-First Platform
                     </span>
                   </li>
                   <li>
@@ -963,11 +925,11 @@ export const Landing = () => {
 
           <div className="mt-12 pt-6 border-t border-amber-200/30 text-center text-xs opacity-50">
             <p>
-              © 2025 BiblioPod - Educational Project. For legally purchased
-              EPUBs only.
+              © 2025 BiblioPod - Privacy-First Digital Library. For legally
+              purchased EPUBs only.
             </p>
             <p className="mt-2 text-amber-600">
-              🎓 School Project - Academic Use Only
+              📚 Client-Side Storage - Your Data Stays Private
             </p>
           </div>
         </div>

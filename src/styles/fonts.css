@@ -17,7 +17,7 @@
 }
 
 @font-face {
-  font-family: "Atkinson";
+  font-family: "Atkinson Hyperlegible";
   src: url("/fonts/atkinson/Atkinson-Hyperlegible-Regular-102a.woff2")
       format("woff2"),
     url("/fonts/atkinson/Atkinson-Hyperlegible-Regular-102.woff") format("woff"),
@@ -54,7 +54,7 @@
 }
 
 .font-atkinson {
-  font-family: "Atkinson", sans-serif;
+  font-family: "Atkinson Hyperlegible", sans-serif;
 }
 
 .font-bookerly {

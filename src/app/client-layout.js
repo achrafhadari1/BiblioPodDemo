@@ -13,6 +13,8 @@ export default function ClientLayout({ children }) {
     pathname === "/read" ||
     pathname === "/login" ||
     pathname === "/welcome" ||
+    pathname === "/terms" ||
+    pathname === "/privacy" ||
     pathname === "/signup";
 
   return (

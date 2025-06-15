@@ -48,23 +48,21 @@ export const metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL(
-    "https://work-1-fecwncvcbyefqoit.prod-runtime.all-hands.dev"
-  ),
+  metadataBase: new URL("https://bibliopod.vercel.app"),
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://work-1-fecwncvcbyefqoit.prod-runtime.all-hands.dev",
+    url: "https://bibliopod.vercel.app",
     title: "BiblioPod - Your Personal Digital Library & Reading Platform",
     description:
       "Upload ePub books, track reading progress, create collections, and enjoy a privacy-first reading experience with local storage. No registration required.",
     siteName: "BiblioPod",
     images: [
       {
-        url: "/logo-long.png",
+        url: "/logo_long_bg.png",
         width: 1200,
         height: 630,
         alt: "BiblioPod - Digital Library Platform",
@@ -76,7 +74,7 @@ export const metadata = {
     title: "BiblioPod - Your Personal Digital Library",
     description:
       "Privacy-first ebook reader with local storage, reading challenges, and comprehensive library management.",
-    images: ["/logo-long.png"],
+    images: ["/logo_long_bg.png"],
   },
   robots: {
     index: true,
@@ -102,7 +100,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/small-logo_1.png" />
+        <link rel="apple-touch-icon" href="/Untitled-1.png" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#f97316" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

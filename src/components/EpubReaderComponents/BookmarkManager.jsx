@@ -124,7 +124,7 @@ const BookmarkManager = ({
       <div className="space-y-3">
         {bookmarks.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            <Bookmark className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <Bookmark className="w-4 h-5 mx-auto mb-2 opacity-50 " />
             <p className="text-sm">No bookmarks yet</p>
             <p className="text-xs mt-1">
               Tap the bookmark icon to save your current page
@@ -201,9 +201,9 @@ const BookmarkManager = ({
       title={isCurrentPageBookmarked ? "Remove bookmark" : "Add bookmark"}
     >
       {isCurrentPageBookmarked ? (
-        <BookmarkCheck size={20} />
+        <BookmarkCheck size={15} />
       ) : (
-        <Bookmark size={20} />
+        <Bookmark size={15} className="text-black" />
       )}
     </Button>
   );

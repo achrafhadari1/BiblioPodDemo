@@ -72,12 +72,18 @@ function EpubReader() {
   const [swipeDirection, setSwipeDirection] = useState(null);
   const [currentPercentage, setCurrentPercentage] = useState(0);
   const [showReadingProgress, setShowReadingProgress] = useState(false);
+  const [mobileHoverMode, setMobileHoverMode] = useState(false);
 
   // Touch/swipe state - using refs to avoid race conditions
   const touchStartRef = useRef(null);
   const touchEndRef = useRef(null);
   const isSwipingRef = useRef(false);
   const lastSwipeTimeRef = useRef(0);
+
+  // Double-tap hover state
+  const lastTapTimeRef = useRef(0);
+  const tapCountRef = useRef(0);
+  const hoverTimeoutRef = useRef(null);
 
   // Minimum swipe distance (in px) and debounce time
   const minSwipeDistance = 50;
@@ -122,31 +128,75 @@ function EpubReader() {
     updatePageInfo(rendition, book);
   }, [rendition, book]);
 
-  // Touch/swipe handlers with improved debouncing and state management
-  const onTouchStart = useCallback((e) => {
-    console.log("[SWIPE] Touch start triggered", {
-      isSwipingRef: isSwipingRef.current,
-      touchStartRef: touchStartRef.current,
-    });
+  // Double-tap detection for mobile hover
+  const handleDoubleTap = useCallback((e) => {
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTimeRef.current;
 
-    // Prevent multiple simultaneous swipes
-    if (isSwipingRef.current) {
-      console.log("[SWIPE] Preventing touch start - already swiping");
-      e.preventDefault();
-      return;
+    if (timeSinceLastTap < 300) {
+      // 300ms window for double-tap
+      tapCountRef.current += 1;
+      if (tapCountRef.current === 2) {
+        console.log("[MOBILE_HOVER] Double-tap detected, enabling hover mode");
+        setMobileHoverMode(true);
+
+        // Clear any existing timeout
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+        }
+
+        // Auto-disable hover mode after 3 seconds
+        hoverTimeoutRef.current = setTimeout(() => {
+          console.log("[MOBILE_HOVER] Auto-disabling hover mode");
+          setMobileHoverMode(false);
+        }, 3000);
+
+        tapCountRef.current = 0;
+        e.preventDefault();
+        e.stopPropagation();
+        return true; // Indicate double-tap was handled
+      }
+    } else {
+      tapCountRef.current = 1;
     }
 
-    const startX = e.targetTouches[0].clientX;
-    touchStartRef.current = startX;
-    touchEndRef.current = null;
-    isSwipingRef.current = true;
-
-    console.log(
-      "[SWIPE] Touch start detected at X:",
-      startX,
-      "State set to swiping"
-    );
+    lastTapTimeRef.current = now;
+    return false; // No double-tap detected
   }, []);
+
+  // Touch/swipe handlers with improved debouncing and state management
+  const onTouchStart = useCallback(
+    (e) => {
+      console.log("[SWIPE] Touch start triggered", {
+        isSwipingRef: isSwipingRef.current,
+        touchStartRef: touchStartRef.current,
+      });
+
+      // Check for double-tap first
+      if (handleDoubleTap(e)) {
+        return; // Double-tap was handled, don't process as swipe
+      }
+
+      // Prevent multiple simultaneous swipes
+      if (isSwipingRef.current) {
+        console.log("[SWIPE] Preventing touch start - already swiping");
+        e.preventDefault();
+        return;
+      }
+
+      const startX = e.targetTouches[0].clientX;
+      touchStartRef.current = startX;
+      touchEndRef.current = null;
+      isSwipingRef.current = true;
+
+      console.log(
+        "[SWIPE] Touch start detected at X:",
+        startX,
+        "State set to swiping"
+      );
+    },
+    [handleDoubleTap]
+  );
 
   const onTouchMove = useCallback((e) => {
     if (!touchStartRef.current || !isSwipingRef.current) return;
@@ -193,10 +243,27 @@ function EpubReader() {
         return;
       }
 
-      // Get end position from current ref or changedTouches
+      // Get end position to check if this is a tap vs swipe
       let endX = touchEndRef.current;
       if (!endX && e.changedTouches && e.changedTouches[0]) {
         endX = e.changedTouches[0].clientX;
+      }
+
+      // If mobile hover mode is active and this is a single tap (not a swipe), disable hover mode
+      if (mobileHoverMode && endX) {
+        const distance = Math.abs(touchStartRef.current - endX);
+
+        if (distance < minSwipeDistance) {
+          console.log(
+            "[MOBILE_HOVER] Single tap detected, disabling hover mode"
+          );
+          setMobileHoverMode(false);
+          if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+          }
+          cleanup();
+          return;
+        }
       }
 
       if (!endX) {
@@ -247,7 +314,14 @@ function EpubReader() {
       // Always cleanup at the end
       cleanup();
     },
-    [minSwipeDistance, rendition, nextBtn, backBtn, swipeDebounceTime]
+    [
+      minSwipeDistance,
+      rendition,
+      nextBtn,
+      backBtn,
+      swipeDebounceTime,
+      mobileHoverMode,
+    ]
   );
 
   // Attach touch event listeners - simplified to avoid duplicate events
@@ -831,6 +905,11 @@ function EpubReader() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
 
+      // Clear hover timeout
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+
       // Save on component unmount
       if (book && rendition) {
         saveReadingProgress(true);
@@ -941,6 +1020,11 @@ function EpubReader() {
         nextBtn();
       } else if (event.key === "ArrowLeft") {
         backBtn();
+      } else if (event.key === "Escape") {
+        // Close reading progress modal if open
+        if (showReadingProgress) {
+          setShowReadingProgress(false);
+        }
       }
     };
 
@@ -948,7 +1032,7 @@ function EpubReader() {
       document.addEventListener("keydown", handleKeyDown);
       return () => document.removeEventListener("keydown", handleKeyDown);
     }
-  }, [rendition]);
+  }, [rendition, showReadingProgress]);
 
   // Save book data to IndexedDB
   useEffect(() => {
@@ -1305,6 +1389,10 @@ function EpubReader() {
                 location.start.cfi
               );
               setCurrentCFI(location.start.cfi);
+
+              // Also set the initial chapter
+              console.log("[CHAPTER] Setting initial chapter after display");
+              updateCurrentChapter(location, loadedBook);
             } else {
               console.log(
                 "[CFI] No location available immediately after display"
@@ -1327,6 +1415,32 @@ function EpubReader() {
           pageCalculationTimeoutRef.current = setTimeout(() => {
             console.log("[DEBUG] Running calculateInitialPageInfo");
             calculateInitialPageInfo(newRendition, loadedBook);
+
+            // Ensure chapter is set even if it wasn't set initially
+            try {
+              const location = newRendition.currentLocation();
+              if (location) {
+                console.log("[CHAPTER] Setting chapter in delayed calculation");
+                updateCurrentChapter(location, loadedBook);
+              } else {
+                // Last resort: set a default chapter if we have TOC
+                if (loadedBook?.navigation?.toc) {
+                  const toc = flatten(loadedBook.navigation.toc);
+                  if (toc.length > 0) {
+                    console.log("[CHAPTER] Setting first chapter as fallback");
+                    const firstChapter = toc[0];
+                    const chapterLabel =
+                      firstChapter.label?.trim() || "Chapter 1";
+                    setCurrentChapter(chapterLabel);
+                  }
+                }
+              }
+            } catch (error) {
+              console.error(
+                "[CHAPTER] Error in delayed chapter setting:",
+                error
+              );
+            }
           }, 500);
         })
         .catch((error) => {
@@ -1443,26 +1557,12 @@ function EpubReader() {
     }
   };
 
-  // Helper function to get CFI from href
-  const getCfiFromHref = (book, href) => {
-    try {
-      const [_, id] = href.split("#");
-      const section = book.spine.get(href);
-      if (!section || !section.document) return null;
-
-      const el = id
-        ? section.document.getElementById(id)
-        : section.document.body;
-      return el ? section.cfiFromElement(el) : null;
-    } catch (error) {
-      console.log("[CHAPTER] Error getting CFI from href:", error);
-      return null;
-    }
-  };
-
-  // Enhanced chapter detection using CFI comparison
+  // Improved chapter detection function
   const updateCurrentChapter = (location, bookInstance) => {
-    console.log("[CHAPTER] updateCurrentChapter called");
+    console.log(
+      "[CHAPTER] updateCurrentChapter called with location:",
+      location
+    );
 
     if (
       !bookInstance ||
@@ -1473,120 +1573,173 @@ function EpubReader() {
       return;
     }
 
+    if (!location || !location.start) {
+      console.log("[CHAPTER] No valid location provided");
+      return;
+    }
+
     try {
       const toc = flatten(bookInstance.navigation.toc);
       console.log(
         "[CHAPTER] Available TOC items:",
         toc.map((item) => ({
-          label: item.label.trim(),
+          label: item.label?.trim() || "Untitled",
           href: item.href,
           id: item.id,
         }))
       );
 
-      // Use the advanced CFI-based chapter detection
-      if (location && location.start && location.start.cfi) {
+      // Get href from location - try multiple sources
+      const currentHref = location.start?.href || location.href;
+      console.log("[CHAPTER] Current location href:", currentHref);
+      console.log("[CHAPTER] Location object:", location);
+
+      if (!currentHref) {
         console.log(
-          "[CHAPTER] Using CFI-based detection for:",
-          location.start.cfi
+          "[CHAPTER] No href in location, trying spine index fallback"
         );
-
-        let match = toc
-          .filter((chapter) => {
-            try {
-              const locationHref = location.start.href;
-              if (!locationHref) return false;
-
-              const canonical1 = bookInstance.canonical
-                ? bookInstance.canonical(chapter.href)
-                : chapter.href;
-              const canonical2 = bookInstance.canonical
-                ? bookInstance.canonical(locationHref)
-                : locationHref;
-
-              return (
-                canonical1.includes(canonical2) ||
-                canonical2.includes(canonical1)
+        // If no href, try to use the spine index directly
+        if (location.index !== undefined && bookInstance.spine) {
+          try {
+            const spineItem = bookInstance.spine.get(location.index);
+            if (spineItem && spineItem.href) {
+              console.log(
+                "[CHAPTER] Found href from spine index:",
+                spineItem.href
               );
-            } catch (error) {
-              console.log("[CHAPTER] Error in filter:", error);
-              return false;
-            }
-          })
-          .reduce((result, chapter) => {
-            try {
-              const chapterCfi = getCfiFromHref(bookInstance, chapter.href);
-              if (!chapterCfi) return result;
+              const spineHref = spineItem.href;
 
-              // Use EpubJS CFI comparison if available
-              const EpubCFI = window.ePub?.CFI || window.EpubCFI;
-              if (EpubCFI && EpubCFI.prototype.compare) {
-                const locationAfterChapter =
-                  EpubCFI.prototype.compare(location.start.cfi, chapterCfi) > 0;
-                return locationAfterChapter ? chapter : result;
-              } else {
-                // Fallback: simple string comparison
-                return chapter;
+              // Try to match this spine href with TOC
+              let chapter = toc.find((item) => item.href === spineHref);
+              if (!chapter) {
+                const baseHref = spineHref.split("#")[0];
+                chapter = toc.find((item) => {
+                  const itemBaseHref = item.href?.split("#")[0];
+                  return itemBaseHref === baseHref;
+                });
               }
-            } catch (error) {
-              console.log("[CHAPTER] Error in reduce:", error);
-              return result;
-            }
-          }, null);
+              if (!chapter) {
+                chapter = toc.find((item) => {
+                  if (!item.href) return false;
+                  return (
+                    spineHref.includes(item.href) ||
+                    item.href.includes(spineHref)
+                  );
+                });
+              }
 
-        if (match) {
-          console.log("[CHAPTER] CFI-based match found:", match);
-          const chapterLabel = match.label.trim();
-          setCurrentChapter(chapterLabel);
-          return;
+              if (chapter) {
+                console.log("[CHAPTER] Spine-based match found:", chapter);
+                const chapterLabel =
+                  chapter.label?.trim() || "Untitled Chapter";
+                setCurrentChapter(chapterLabel);
+                return;
+              }
+            }
+          } catch (error) {
+            console.log("[CHAPTER] Error in spine index lookup:", error);
+          }
         }
+
+        // If still no href, use the spine index approximation method
+        if (location.index !== undefined && toc.length > 0) {
+          const spineIndex = location.index;
+          const chapterIndex = Math.min(
+            Math.floor((spineIndex / bookInstance.spine.length) * toc.length),
+            toc.length - 1
+          );
+          const chapter = toc[chapterIndex];
+          if (chapter) {
+            console.log("[CHAPTER] Index approximation match found:", chapter);
+            const chapterLabel =
+              chapter.label?.trim() || `Chapter ${chapterIndex + 1}`;
+            setCurrentChapter(chapterLabel);
+            return;
+          }
+        }
+
+        console.log("[CHAPTER] Could not determine chapter from location");
+        return;
       }
 
-      // Fallback: Use href-based detection
-      console.log("[CHAPTER] Falling back to href-based detection");
-      const currentHref = location.start.href;
+      // Method 1: Try exact href match
+      let chapter = toc.find((item) => item.href === currentHref);
+      if (chapter) {
+        console.log("[CHAPTER] Exact href match found:", chapter);
+        const chapterLabel = chapter.label?.trim() || "Untitled Chapter";
+        setCurrentChapter(chapterLabel);
+        return;
+      }
 
-      if (currentHref) {
-        // Try exact match first
-        let chapter = toc.find((item) => item.href === currentHref);
+      // Method 2: Try base href match (without fragment)
+      const baseHref = currentHref.split("#")[0];
+      chapter = toc.find((item) => {
+        const itemBaseHref = item.href?.split("#")[0];
+        return itemBaseHref === baseHref;
+      });
+      if (chapter) {
+        console.log("[CHAPTER] Base href match found:", chapter);
+        const chapterLabel = chapter.label?.trim() || "Untitled Chapter";
+        setCurrentChapter(chapterLabel);
+        return;
+      }
 
-        if (!chapter) {
-          // Try base href match (without fragment)
-          const baseHref = currentHref.split("#")[0];
-          chapter = toc.find((item) => item.href?.split("#")[0] === baseHref);
-        }
+      // Method 3: Try partial href matching (contains)
+      chapter = toc.find((item) => {
+        if (!item.href) return false;
+        return (
+          currentHref.includes(item.href) || item.href.includes(currentHref)
+        );
+      });
+      if (chapter) {
+        console.log("[CHAPTER] Partial href match found:", chapter);
+        const chapterLabel = chapter.label?.trim() || "Untitled Chapter";
+        setCurrentChapter(chapterLabel);
+        return;
+      }
 
-        if (!chapter) {
-          // Try canonical URL matching
+      // Method 4: Try canonical URL matching if available
+      if (bookInstance.canonical) {
+        try {
+          const canonicalCurrent = bookInstance.canonical(currentHref);
           chapter = toc.find((item) => {
+            if (!item.href) return false;
             try {
-              const canonical1 = bookInstance.canonical
-                ? bookInstance.canonical(item.href)
-                : item.href;
-              const canonical2 = bookInstance.canonical
-                ? bookInstance.canonical(currentHref)
-                : currentHref;
+              const canonicalItem = bookInstance.canonical(item.href);
               return (
-                canonical1.includes(canonical2) ||
-                canonical2.includes(canonical1)
+                canonicalCurrent === canonicalItem ||
+                canonicalCurrent.includes(canonicalItem) ||
+                canonicalItem.includes(canonicalCurrent)
               );
             } catch (error) {
               return false;
             }
           });
-        }
-
-        if (chapter) {
-          console.log("[CHAPTER] Href-based match found:", chapter);
-          const chapterLabel = chapter.label.trim();
-          setCurrentChapter(chapterLabel);
-          return;
+          if (chapter) {
+            console.log("[CHAPTER] Canonical URL match found:", chapter);
+            const chapterLabel = chapter.label?.trim() || "Untitled Chapter";
+            setCurrentChapter(chapterLabel);
+            return;
+          }
+        } catch (error) {
+          console.log("[CHAPTER] Error in canonical URL matching:", error);
         }
       }
 
-      console.log("[CHAPTER] No chapter found with any method");
+      // Method 5: Last resort - use first chapter or generic name
+      if (toc.length > 0) {
+        console.log("[CHAPTER] Using first chapter as fallback");
+        const firstChapter = toc[0];
+        const chapterLabel = firstChapter.label?.trim() || "Chapter 1";
+        setCurrentChapter(chapterLabel);
+      } else {
+        console.log("[CHAPTER] No TOC available, using generic name");
+        setCurrentChapter("Current Chapter");
+      }
     } catch (error) {
       console.error("[CHAPTER] Error in chapter detection:", error);
+      // Set a fallback chapter name
+      setCurrentChapter("Current Chapter");
     }
   };
 
@@ -1877,7 +2030,9 @@ function EpubReader() {
       />
       <div
         className={`titlebar reader-controls ${
-          showTitleBar ? "" : "opacity-low"
+          showTitleBar || (isMobile && mobileHoverMode) ? "" : "opacity-low"
+        } ${
+          isMobile && mobileHoverMode ? "mobile-hover-active" : ""
         } transition-opacity duration-300`}
       >
         <div className="desktop-reader-menu">
@@ -1895,7 +2050,7 @@ function EpubReader() {
         <div id="metainfo">
           <span id="book-title">{bookData.author}</span>
           <span id="title-separator">&nbsp;&nbsp;–&nbsp;&nbsp;</span>
-          <span id="chapter-title">{currentChapter || bookData.title}</span>
+          <span id="chapter-title">{bookData.title}</span>
         </div>
 
         <div id="title-controls">
@@ -2008,15 +2163,47 @@ function EpubReader() {
 
       {/* Reading Progress Panel */}
       {showReadingProgress && (
-        <div className="fixed top-20 right-4 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 z-40">
-          <ReadingProgress
-            currentPage={currentPage}
-            totalPages={totalPages}
-            currentPercentage={currentPercentage}
-            currentChapter={currentChapter}
-            book={book}
-            rendition={rendition}
-          />
+        <div
+          className="fixed inset-0 z-40 flex items-start justify-end pt-20 pr-4"
+          onClick={() => setShowReadingProgress(false)}
+        >
+          <div
+            className="w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Reading Progress
+              </h3>
+              <button
+                onClick={() => setShowReadingProgress(false)}
+                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Close reading progress"
+              >
+                <svg
+                  className="w-5 h-5 text-gray-500 dark:text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            <ReadingProgress
+              currentPage={currentPage}
+              totalPages={totalPages}
+              currentPercentage={currentPercentage}
+              currentChapter={currentChapter}
+              book={book}
+              rendition={rendition}
+            />
+          </div>
         </div>
       )}
     </div>

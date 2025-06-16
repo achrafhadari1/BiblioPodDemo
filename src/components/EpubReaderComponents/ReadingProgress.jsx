@@ -26,6 +26,13 @@ const ReadingProgress = ({
       hasRendition: !!rendition,
     });
 
+    // Debug currentChapter specifically
+    if (currentChapter) {
+      console.log("[READING_PROGRESS] Current chapter is set:", currentChapter);
+    } else {
+      console.log("[READING_PROGRESS] Current chapter is empty/null");
+    }
+
     if (!book || !rendition || !currentPercentage) return;
 
     const calculateReadingTime = async () => {
@@ -125,7 +132,7 @@ const ReadingProgress = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-600 dark:text-gray-400">
-            Reading Progress
+            Overall Progress
           </span>
           <span className="font-medium text-gray-900 dark:text-gray-100">
             {Math.round(currentPercentage || 0)}%
@@ -156,7 +163,7 @@ const ReadingProgress = ({
           </span>
         </div>
         <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
-          {currentChapter || "Loading chapter..."}
+          {currentChapter || (book ? "Current Chapter" : "Loading chapter...")}
         </div>
       </div>
 

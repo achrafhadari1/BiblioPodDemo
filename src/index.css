@@ -328,6 +328,7 @@ code {
 }
 .opacity-low {
   opacity: 0;
+  pointer-events: none;
 }
 .lib-title {
   padding-bottom: 10px;

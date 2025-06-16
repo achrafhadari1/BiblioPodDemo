@@ -111,9 +111,18 @@ export const ReaderMenu = ({
   useEffect(() => {
     if (book) {
       const chapters = flatten(book.navigation.toc);
+      console.log(
+        "[READER_MENU] Setting chapters:",
+        chapters.map((c) => ({ label: c.label, href: c.href }))
+      );
       setChapters(chapters);
     }
   }, [book]);
+
+  // Debug currentChapter changes
+  useEffect(() => {
+    console.log("[READER_MENU] currentChapter prop changed:", currentChapter);
+  }, [currentChapter]);
 
   const handleGotoPage = async (cfiRange) => {
     if (rendition) {
@@ -298,7 +307,13 @@ export const ReaderMenu = ({
                               "hover:bg-default-100 active:bg-default-200",
                               "text-sm leading-relaxed",
                               currentChapter &&
-                                currentChapter.includes(chapter.href)
+                                (currentChapter === chapter.label?.trim() ||
+                                  currentChapter.includes(
+                                    chapter.label?.trim()
+                                  ) ||
+                                  chapter.label
+                                    ?.trim()
+                                    .includes(currentChapter))
                                 ? "bg-primary/10 text-primary border border-primary/20"
                                 : "text-foreground"
                             )}

@@ -246,7 +246,7 @@ const SearchInBook = ({
     <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm">
       <div
         ref={containerRef}
-        className="absolute top-4 left-1/2 transform -translate-x-1/2 w-full max-w-2xl mx-4"
+        className="absolute top-0 left-[45.5%] transform -translate-x-1/2 w-full max-w-2xl mx-4"
       >
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700">
           {/* Search Header */}

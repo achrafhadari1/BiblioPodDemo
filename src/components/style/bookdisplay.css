@@ -125,6 +125,57 @@
 }
 .titlebar:hover {
   opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile hover mode styles */
+.mobile-hover-active {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 122, 255, 0.3);
+}
+
+/* Mobile hover indicator */
+.mobile-hover-active::before {
+  content: "📱 Hover Mode Active";
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1000;
+  animation: fadeInOut 3s ease-in-out;
+}
+
+.dark .mobile-hover-active::before {
+  background: #fff;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
 }
 #title-controls {
   display: flex;

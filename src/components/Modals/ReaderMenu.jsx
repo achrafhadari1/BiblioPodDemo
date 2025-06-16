@@ -193,7 +193,7 @@ export const ReaderMenu = ({
         `,
         }}
       />
-      <div className="flex items-center gap-3">
+      <div className="flex items-center ">
         {/* Home Button */}
         <Button
           isIconOnly
@@ -202,7 +202,7 @@ export const ReaderMenu = ({
           className="text-foreground hover:bg-default-100 transition-all duration-200"
           aria-label="Go to home"
         >
-          <BiHomeAlt2 className="w-5 h-5 text-black" />
+          <BiHomeAlt2 className="w-4 h-4 text-black" />
         </Button>
 
         {/* Search Button */}
@@ -213,7 +213,7 @@ export const ReaderMenu = ({
           className="text-foreground hover:bg-default-100 transition-all duration-200"
           aria-label="Search in book"
         >
-          <Search className="w-5 h-5 text-black" />
+          <Search className="w-4 h-4 text-black" />
         </Button>
 
         {/* Bookmark Button */}
@@ -228,7 +228,7 @@ export const ReaderMenu = ({
               className="text-foreground hover:bg-default-100 transition-all duration-200"
               aria-label="Open menu"
             >
-              <IoMdMenu className="w-5 h-5 text-black" />
+              <IoMdMenu className="w-4 h-4 text-black" />
             </Button>
           </DrawerTrigger>
 

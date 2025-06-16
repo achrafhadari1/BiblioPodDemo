@@ -73,7 +73,7 @@ export const EpubReaderSettings = ({
             className="text-foreground hover:bg-default-100 transition-all duration-200 dark:text-white dark:hover:bg-default-200/20"
             aria-label="Open settings"
           >
-            <IoSettingsOutline className="w-5 h-5 text-black " />
+            <IoSettingsOutline className="w-4 h-4 text-black " />
           </NextUIButton>
         </DrawerTrigger>
         <DrawerContent>

@@ -442,7 +442,6 @@ code {
   /* Improve touch targets for mobile */
   .titlebar button {
     min-height: 44px;
-    min-width: 40px;
     display: flex;
     align-items: center;
     justify-content: center;

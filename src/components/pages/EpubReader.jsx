@@ -1919,7 +1919,7 @@ function EpubReader() {
             className="text-foreground hover:bg-default-100 transition-all duration-200"
             aria-label="Toggle dark mode"
           >
-            <FiMoon className="w-5 h-5 text-black" />
+            <FiMoon className="w-4 h-4 text-black" />
           </Button>
           <EpubReaderSettings
             rendition={rendition}
@@ -1935,7 +1935,7 @@ function EpubReader() {
             className="text-foreground hover:bg-default-100 transition-all duration-200"
             aria-label="Toggle reading progress"
           >
-            <BarChart3 className="w-5 h-5 text-black" />
+            <BarChart3 className="w-4 h-4 text-black" />
           </Button>
           <Button
             isIconOnly
@@ -1944,7 +1944,7 @@ function EpubReader() {
             className="text-foreground hover:bg-default-100 transition-all duration-200"
             aria-label="Toggle fullscreen"
           >
-            <AiOutlineFullscreen className="w-5 h-5 text-black" />
+            <AiOutlineFullscreen className="w-4 h-4 text-black" />
           </Button>
         </div>
       </div>

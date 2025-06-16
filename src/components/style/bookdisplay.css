@@ -154,18 +154,20 @@
   /* Show mobile reader icons */
   .mobile-reader-icons {
     display: flex;
+    padding-left: 1rem;
   }
 
   #title-controls {
     position: absolute;
-    bottom: -49rem;
+    bottom: -4rem;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     gap: 0px;
     background: var(--card-bg);
-    padding: 8px 12px;
+    padding: 8px 0px;
     border-radius: 25px;
+    width: 22rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 20;
   }

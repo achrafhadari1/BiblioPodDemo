@@ -13,11 +13,13 @@ import { bookStorageDB } from "../../utils/bookStorageDB";
 import { AiOutlineFullscreen } from "react-icons/ai";
 import { GrNext, GrPrevious } from "react-icons/gr";
 import { FiMoon } from "react-icons/fi";
+import { BarChart3 } from "lucide-react";
 import { CircularProgress, Button } from "@nextui-org/react";
 
 import TextSelectionCoordinates from "../Modals/TextSelectionCoordinates";
 import { ReaderMenu } from "../Modals/ReaderMenu";
 import { EpubReaderSettings } from "../EpubReaderComponents/EpubReaderSettings";
+import ReadingProgress from "../EpubReaderComponents/ReadingProgress";
 import { userPreferencesDB } from "../../utils/userPreferences";
 
 // Utility function to detect mobile devices
@@ -67,6 +69,8 @@ function EpubReader() {
   const [isBookLoading, setIsBookLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState(null);
+  const [currentPercentage, setCurrentPercentage] = useState(0);
+  const [showReadingProgress, setShowReadingProgress] = useState(false);
 
   // Touch/swipe state - using refs to avoid race conditions
   const touchStartRef = useRef(null);
@@ -1307,6 +1311,21 @@ function EpubReader() {
           }
         }
 
+        // Calculate reading percentage
+        if (loadedBook.locations && location.start.cfi) {
+          try {
+            const percentage = loadedBook.locations.percentageFromCfi(
+              location.start.cfi
+            );
+            setCurrentPercentage(Math.round(percentage * 100));
+          } catch (error) {
+            console.warn("Could not calculate reading percentage:", error);
+          }
+        }
+
+        // Update current CFI
+        setCurrentCFI(location.start.cfi);
+
         // Reapply font settings on each page change
         applyFontSettings();
 
@@ -1636,6 +1655,8 @@ function EpubReader() {
           saveReadingProgress={saveReadingProgress}
           rendition={rendition}
           selectedColor={null}
+          currentCFI={currentCFI}
+          currentChapter={currentChapter}
         />
 
         <div id="metainfo">
@@ -1660,6 +1681,15 @@ function EpubReader() {
             updateFontSize={updateFontSize}
             updateFontFamily={updateFontFamily}
           />
+          <Button
+            isIconOnly
+            onClick={() => setShowReadingProgress(!showReadingProgress)}
+            variant="light"
+            className="text-foreground hover:bg-default-100 transition-all duration-200"
+            aria-label="Toggle reading progress"
+          >
+            <BarChart3 className="w-5 h-5 text-black" />
+          </Button>
           <Button
             isIconOnly
             onClick={toggleFullscreen}
@@ -1728,6 +1758,20 @@ function EpubReader() {
           </span>
         </div>
       </div>
+
+      {/* Reading Progress Panel */}
+      {showReadingProgress && (
+        <div className="fixed top-20 right-4 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 z-40">
+          <ReadingProgress
+            currentPage={currentPage}
+            totalPages={totalPages}
+            currentPercentage={currentPercentage}
+            currentChapter={currentChapter}
+            book={book}
+            rendition={rendition}
+          />
+        </div>
+      )}
     </div>
   );
 }

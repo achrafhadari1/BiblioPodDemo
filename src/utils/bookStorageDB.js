@@ -4,11 +4,12 @@
  */
 
 const DB_NAME = "BiblioPodDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const BOOKS_STORE = "books";
 const FILES_STORE = "bookFiles";
 const COLLECTIONS_STORE = "collections";
 const HIGHLIGHTS_STORE = "highlights";
+const BOOKMARKS_STORE = "bookmarks";
 const PROGRESS_STORE = "readingProgress";
 const CHALLENGES_STORE = "challenges";
 const SETTINGS_STORE = "settings";
@@ -75,6 +76,19 @@ class BiblioPodDB {
             unique: false,
           });
           highlightsStore.createIndex("created_at", "created_at", {
+            unique: false,
+          });
+        }
+
+        // Create bookmarks store
+        if (!db.objectStoreNames.contains(BOOKMARKS_STORE)) {
+          const bookmarksStore = db.createObjectStore(BOOKMARKS_STORE, {
+            keyPath: "id",
+          });
+          bookmarksStore.createIndex("book_isbn", "book_isbn", {
+            unique: false,
+          });
+          bookmarksStore.createIndex("created_at", "created_at", {
             unique: false,
           });
         }
@@ -453,6 +467,46 @@ class BiblioPodDB {
   async deleteAnnotation(bookIsbn, id) {
     // Delete by ID - this is the main method used by the UI
     return this.deleteHighlight(id);
+  }
+
+  // Bookmark operations
+  async getBookmarks(bookIsbn) {
+    if (!this.db) await this.init();
+    const transaction = this.db.transaction([BOOKMARKS_STORE], "readonly");
+    const store = transaction.objectStore(BOOKMARKS_STORE);
+    const index = store.index("book_isbn");
+    return this.promisifyRequest(index.getAll(bookIsbn));
+  }
+
+  async addBookmark(bookIsbn, bookmarkData) {
+    if (!this.db) await this.init();
+    const transaction = this.db.transaction([BOOKMARKS_STORE], "readwrite");
+    const store = transaction.objectStore(BOOKMARKS_STORE);
+    const bookmark = {
+      ...bookmarkData,
+      book_isbn: bookIsbn,
+      created_at: new Date().toISOString(),
+    };
+    return this.promisifyRequest(store.add(bookmark));
+  }
+
+  async deleteBookmark(bookIsbn, bookmarkId) {
+    if (!this.db) await this.init();
+    const transaction = this.db.transaction([BOOKMARKS_STORE], "readwrite");
+    const store = transaction.objectStore(BOOKMARKS_STORE);
+    return this.promisifyRequest(store.delete(bookmarkId));
+  }
+
+  async updateBookmark(bookIsbn, bookmarkId, updates) {
+    if (!this.db) await this.init();
+    const transaction = this.db.transaction([BOOKMARKS_STORE], "readwrite");
+    const store = transaction.objectStore(BOOKMARKS_STORE);
+    const bookmark = await this.promisifyRequest(store.get(bookmarkId));
+    if (bookmark) {
+      const updatedBookmark = { ...bookmark, ...updates };
+      return this.promisifyRequest(store.put(updatedBookmark));
+    }
+    return false;
   }
 
   // Reading progress operations

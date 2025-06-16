@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
-import { Bookmark, X } from "lucide-react";
+import { Bookmark, X, BookOpen, StickyNote } from "lucide-react";
 import { bookStorageDB } from "../../utils/bookStorageDB";
 import { cn } from "../lib/utils";
+import DictionaryLookup from "../EpubReaderComponents/DictionaryLookup";
 
 const HIGHLIGHT_COLORS = [
   {
@@ -61,6 +62,9 @@ const TextSelectionCoordinates = ({
   const [isColorBoxOpen, setIsColorBoxOpen] = useState(false);
   const [selectedColor, setSelectedColor] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDictionary, setShowDictionary] = useState(false);
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [noteText, setNoteText] = useState("");
 
   const colorBoxRef = useRef(null);
 
@@ -197,7 +201,6 @@ const TextSelectionCoordinates = ({
 
       // Update state
       setSelectedColor(color);
-      setIsColorBoxOpen(false);
 
       // Save to IndexedDB
       const annotation = {
@@ -207,20 +210,75 @@ const TextSelectionCoordinates = ({
         cfi_range: lastCfiRange,
         created_at: new Date().toISOString(),
         id: `annotation-${Date.now()}`,
+        note: noteText || "", // Include note if provided
       };
 
       await bookStorageDB.addAnnotation(bookValue, annotation);
 
+      // Dispatch event to notify ReaderMenu
+      window.dispatchEvent(
+        new CustomEvent("annotationCreated", {
+          detail: { bookValue, annotation },
+        })
+      );
+
       toast.success("Highlight saved successfully");
       console.log("Annotation stored:", annotation);
+
+      // Close all dialogs
+      closeAllDialogs();
     } catch (error) {
       console.error("Error storing annotation:", error);
       toast.error(error.message || "Failed to save highlight");
     } finally {
       setIsSubmitting(false);
-      // Reset selection state
-      setSelectedText("");
-      setLastCfiRange(null);
+    }
+  };
+
+  const closeAllDialogs = () => {
+    setIsColorBoxOpen(false);
+    setShowDictionary(false);
+    setShowNoteInput(false);
+    setNoteText("");
+    setSelectedText("");
+    setLastCfiRange(null);
+  };
+
+  const handleDictionaryLookup = () => {
+    setShowDictionary(true);
+  };
+
+  const handleAddNote = () => {
+    setShowNoteInput(true);
+  };
+
+  const handleBookmark = async () => {
+    if (!lastCfiRange || !rendition) return;
+
+    try {
+      const bookmark = {
+        id: `bookmark-${Date.now()}`,
+        bookIsbn: bookValue,
+        cfi: lastCfiRange,
+        chapter: "Current Chapter", // You might want to get actual chapter name
+        pageNumber: rendition.book.locations
+          ? rendition.book.locations.locationFromCfi(lastCfiRange)
+          : null,
+        percentage: rendition.book.locations
+          ? Math.round(
+              rendition.book.locations.percentageFromCfi(lastCfiRange) * 100
+            )
+          : null,
+        createdAt: new Date().toISOString(),
+        note: selectedText, // Save selected text as bookmark note
+      };
+
+      await bookStorageDB.addBookmark(bookValue, bookmark);
+      toast.success("Bookmark added");
+      closeAllDialogs();
+    } catch (error) {
+      console.error("Error adding bookmark:", error);
+      toast.error("Failed to add bookmark");
     }
   };
 
@@ -274,22 +332,74 @@ const TextSelectionCoordinates = ({
                 ))}
               </div>
 
-              <div className="mt-2 flex justify-center">
+              <div className="mt-3 flex justify-center gap-4">
                 <button
                   className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                  onClick={() => {
-                    // Add bookmark functionality here
-                    toast.info("Bookmark feature coming soon");
-                  }}
+                  onClick={handleDictionaryLookup}
+                  title="Look up definition"
+                >
+                  <BookOpen size={14} />
+                  <span>Define</span>
+                </button>
+
+                <button
+                  className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                  onClick={handleAddNote}
+                  title="Add note to highlight"
+                >
+                  <StickyNote size={14} />
+                  <span>Note</span>
+                </button>
+
+                <button
+                  className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors"
+                  onClick={handleBookmark}
+                  title="Bookmark this location"
                 >
                   <Bookmark size={14} />
                   <span>Bookmark</span>
                 </button>
               </div>
+
+              {/* Note Input */}
+              {showNoteInput && (
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                  <textarea
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    placeholder="Add a note to this highlight..."
+                    className="w-full p-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button
+                      onClick={() => setShowNoteInput(false)}
+                      className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => setShowNoteInput(false)}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      Save Note
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Dictionary Lookup */}
+      <DictionaryLookup
+        selectedText={selectedText}
+        position={selectedTextCoords}
+        isVisible={showDictionary}
+        onClose={() => setShowDictionary(false)}
+      />
     </>
   );
 };

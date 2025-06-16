@@ -158,11 +158,11 @@
 
   #title-controls {
     position: absolute;
-    bottom: -45px;
+    bottom: -49rem;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 8px;
+    gap: 0px;
     background: var(--card-bg);
     padding: 8px 12px;
     border-radius: 25px;

@@ -460,3 +460,14 @@ code {
     backdrop-filter: blur(4px);
   }
 }
+@media (min-width: 640px) and (max-width: 1024px) {
+  .responsive-margin-phone-ipad {
+    margin-top: 12rem !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .responsive-margin-phone-ipad {
+    margin-top: 1rem !important;
+  }
+}

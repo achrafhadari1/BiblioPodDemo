@@ -338,6 +338,9 @@
   .collections-wrapper.grid {
     grid-template-columns: 1fr;
   }
+  .responsive-margin-phone-ipad {
+    margin-top: 1rem;
+  }
 }
 
 /* Add these styles for the improved list view */

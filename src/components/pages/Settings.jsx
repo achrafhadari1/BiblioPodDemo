@@ -458,7 +458,7 @@ export const Settings = () => {
   return (
     <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
       {/* Header */}
-      <div className="flex items-center mb-8">
+      <div className="flex items-center mb-8 mt-8 responsive-margin-phone-ipad">
         <button
           onClick={() => router.push("/library")}
           className="mr-4 p-2 rounded-full hover:bg-gray-100"

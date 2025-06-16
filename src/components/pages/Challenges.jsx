@@ -372,9 +372,9 @@ const ChallengesPage = () => {
   }
 
   return (
-    <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
+    <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4  lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center responsive-margin-phone-ipad mt-8 justify-between gap-4 mb-8">
         <div className="flex items-left w-full">
           <button
             onClick={() => router.push("/library")}

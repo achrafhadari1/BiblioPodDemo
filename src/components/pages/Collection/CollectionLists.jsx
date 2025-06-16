@@ -18,7 +18,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { bookStorageDB } from "../../../utils/bookStorageDB";
-
+import "../../style/collections.css";
 export const CollectionLists = () => {
   const router = useRouter();
   const [viewMode, setViewMode] = useState("grid");
@@ -256,9 +256,9 @@ export const CollectionLists = () => {
 
   if (loading) {
     return (
-      <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
-          <div className="flex items-center">
+      <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 ">
+          <div className=" mt-8 flex items-center responsive-margin-phone-ipad">
             <button
               onClick={() => router.push("/library")}
               className="mr-3 sm:mr-4 p-2 rounded-full hover:bg-gray-100"
@@ -294,9 +294,9 @@ export const CollectionLists = () => {
   }
 
   return (
-    <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 sm:p-6 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
+    <div className="w-full lg:w-[96%] lg:ml-auto flex-1 p-4 lg:p-8 overflow-auto pt-16 lg:pt-0 pb-20 lg:pb-0">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:gap-6 mb-6 sm:mb-8">
+      <div className=" flex flex-col mt-8 gap-4  mb-6 responsive-margin-phone-ipad ">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
           <div className="flex-1">
             <div className="flex items-center">

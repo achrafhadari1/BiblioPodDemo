@@ -343,8 +343,8 @@ export const ReadingStats = () => {
   }
 
   return (
-    <div className="flex-1 w-full lg:w-[96%] lg:ml-auto p-4 sm:p-6 lg:p-8 overflow-auto bg-[#F5F5F0] min-h-screen pt-16 lg:pt-0 pb-20 lg:pb-0">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
+    <div className="flex-1 w-full lg:w-[96%] lg:ml-auto p-4  lg:p-8 overflow-auto bg-[#F5F5F0] min-h-screen pt-16 lg:pt-0 pb-20 lg:pb-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-8 mb-4 responsive-margin-phone-ipad">
         <div className="flex items-center">
           <button
             onClick={() => router.push("/library")}
@@ -625,7 +625,7 @@ export const ReadingStats = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+      <div className="bg-white border mb-8 border-gray-200 rounded-lg p-5 shadow-sm">
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-playfair text-xl font-bold">Reading Summary</h2>
         </div>

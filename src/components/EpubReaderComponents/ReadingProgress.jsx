@@ -17,6 +17,15 @@ const ReadingProgress = ({
 
   // Calculate reading time estimates
   useEffect(() => {
+    console.log("[READING_PROGRESS] Props received:", {
+      currentPage,
+      totalPages,
+      currentPercentage,
+      currentChapter,
+      hasBook: !!book,
+      hasRendition: !!rendition,
+    });
+
     if (!book || !rendition || !currentPercentage) return;
 
     const calculateReadingTime = async () => {
@@ -27,6 +36,17 @@ const ReadingProgress = ({
         let wordsRead = 0;
 
         const spine = book.spine;
+        const currentLocation = rendition.currentLocation();
+        let currentChapterIndex = -1;
+
+        // Find current chapter index
+        for (let i = 0; i < spine.length; i++) {
+          const item = spine.get(i);
+          if (currentLocation && currentLocation.start.href === item.href) {
+            currentChapterIndex = i;
+            break;
+          }
+        }
 
         for (let i = 0; i < spine.length; i++) {
           const item = spine.get(i);
@@ -40,13 +60,12 @@ const ReadingProgress = ({
             totalWords += words;
 
             // Check if this is the current chapter
-            const currentLocation = rendition.currentLocation();
-            if (currentLocation && currentLocation.start.href === item.href) {
+            if (i === currentChapterIndex) {
               currentChapterWords = words;
               // Estimate words read in current chapter based on percentage
               const chapterProgress = (currentPercentage / 100) * words;
               wordsRead += chapterProgress;
-            } else if (i < spine.indexOf(currentLocation?.start.href)) {
+            } else if (i < currentChapterIndex) {
               // Chapters before current one are fully read
               wordsRead += words;
             }
@@ -129,19 +148,17 @@ const ReadingProgress = ({
       </div>
 
       {/* Chapter Info */}
-      {currentChapter && (
-        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <BookOpen size={16} className="text-blue-600" />
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              Current Chapter
-            </span>
-          </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
-            {currentChapter}
-          </div>
+      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <BookOpen size={16} className="text-blue-600" />
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            Current Chapter
+          </span>
         </div>
-      )}
+        <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
+          {currentChapter || "Loading chapter..."}
+        </div>
+      </div>
 
       {/* Time Estimates */}
       <div className="grid grid-cols-2 gap-3">

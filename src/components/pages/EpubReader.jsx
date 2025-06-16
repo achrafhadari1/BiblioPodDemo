@@ -18,6 +18,7 @@ import { CircularProgress, Button } from "@nextui-org/react";
 
 import TextSelectionCoordinates from "../Modals/TextSelectionCoordinates";
 import { ReaderMenu } from "../Modals/ReaderMenu";
+import { flatten } from "../Modals/getChapters";
 import { EpubReaderSettings } from "../EpubReaderComponents/EpubReaderSettings";
 import ReadingProgress from "../EpubReaderComponents/ReadingProgress";
 import { userPreferencesDB } from "../../utils/userPreferences";
@@ -112,14 +113,14 @@ function EpubReader() {
   const nextBtn = useCallback(() => {
     if (!rendition) return;
     rendition.next();
-    updatePageInfo();
-  }, [rendition]);
+    updatePageInfo(rendition, book);
+  }, [rendition, book]);
 
   const backBtn = useCallback(() => {
     if (!rendition) return;
     rendition.prev();
-    updatePageInfo();
-  }, [rendition]);
+    updatePageInfo(rendition, book);
+  }, [rendition, book]);
 
   // Touch/swipe handlers with improved debouncing and state management
   const onTouchStart = useCallback((e) => {
@@ -547,6 +548,10 @@ function EpubReader() {
           console.log(
             `[DEBUG] Setting CFI: ${progress.current_cfi.substring(0, 50)}...`
           );
+          console.log(
+            "[CFI] Setting currentCFI from progress:",
+            progress.current_cfi
+          );
           setCurrentCFI(progress.current_cfi);
           setLoadingMessage("Reading progress loaded");
         } else {
@@ -788,8 +793,33 @@ function EpubReader() {
 
     // Save progress when user navigates away
     const handleVisibilityChange = () => {
+      console.log(
+        "[VISIBILITY] Tab visibility changed:",
+        document.visibilityState
+      );
       if (document.visibilityState === "hidden") {
+        console.log("[VISIBILITY] Tab hidden, saving progress");
         saveReadingProgress(true);
+      } else if (document.visibilityState === "visible") {
+        console.log("[VISIBILITY] Tab visible again");
+        // Check if we need to update currentCFI when tab becomes visible
+        if (rendition) {
+          try {
+            const location = rendition.currentLocation();
+            if (location && location.start && location.start.cfi) {
+              console.log(
+                "[VISIBILITY] Setting CFI on tab visible:",
+                location.start.cfi
+              );
+              setCurrentCFI(location.start.cfi);
+            }
+          } catch (error) {
+            console.error(
+              "[VISIBILITY] Error getting location on tab visible:",
+              error
+            );
+          }
+        }
       }
     };
 
@@ -1265,6 +1295,25 @@ function EpubReader() {
       displayPromise
         .then(() => {
           console.log("[DEBUG] Book display promise resolved successfully");
+
+          // Get and set the current CFI immediately after display
+          try {
+            const location = newRendition.currentLocation();
+            if (location && location.start && location.start.cfi) {
+              console.log(
+                "[CFI] Setting initial currentCFI after display:",
+                location.start.cfi
+              );
+              setCurrentCFI(location.start.cfi);
+            } else {
+              console.log(
+                "[CFI] No location available immediately after display"
+              );
+            }
+          } catch (error) {
+            console.error("[CFI] Error getting location after display:", error);
+          }
+
           // Set the rendition in state
           setRendition(newRendition);
           setIsBookLoading(false);
@@ -1290,41 +1339,42 @@ function EpubReader() {
       // Handle window resize
       const resizeListener = () => {
         newRendition.resize(`${window.innerWidth}px`, "90vh");
-        updatePageInfo(newRendition);
+        updatePageInfo(newRendition, loadedBook);
       };
 
       window.addEventListener("resize", resizeListener);
 
       // Track current chapter and update page info
       newRendition.on("locationChanged", (location) => {
-        updatePageInfo(newRendition);
+        console.log("[LOCATION] locationChanged event fired");
+        console.log("[LOCATION] - location.start.cfi:", location.start.cfi);
+        console.log("[LOCATION] - location.end.cfi:", location.end?.cfi);
+        console.log("[LOCATION] - location.start.href:", location.start.href);
+        console.log(
+          "[LOCATION] - Current state currentCFI before update:",
+          currentCFI
+        );
+        console.log(
+          "[LOCATION] - About to call updatePageInfo and chapter detection"
+        );
+        updatePageInfo(newRendition, loadedBook);
 
-        // Update current chapter
-        if (loadedBook.navigation && loadedBook.navigation.toc) {
-          const toc = loadedBook.navigation.toc;
-          const currentHref = location.start.href;
+        // Update current chapter with enhanced detection
+        updateCurrentChapter(location, loadedBook);
 
-          // Find the current chapter from TOC
-          const chapter = toc.find((item) => currentHref?.includes(item.href));
-          if (chapter) {
-            setCurrentChapter(chapter.label);
-          }
+        // Percentage calculation is now handled by updatePageInfo
+
+        // Update current CFI (try both location.start.cfi and location.start)
+        const newCFI = location.start.cfi || location.start;
+        if (newCFI) {
+          console.log("[CFI] Setting currentCFI from locationChanged:", newCFI);
+          setCurrentCFI(newCFI);
+        } else {
+          console.log(
+            "[CFI] Skipping undefined/null CFI from locationChanged, location:",
+            location
+          );
         }
-
-        // Calculate reading percentage
-        if (loadedBook.locations && location.start.cfi) {
-          try {
-            const percentage = loadedBook.locations.percentageFromCfi(
-              location.start.cfi
-            );
-            setCurrentPercentage(Math.round(percentage * 100));
-          } catch (error) {
-            console.warn("Could not calculate reading percentage:", error);
-          }
-        }
-
-        // Update current CFI
-        setCurrentCFI(location.start.cfi);
 
         // Reapply font settings on each page change
         applyFontSettings();
@@ -1393,31 +1443,208 @@ function EpubReader() {
     }
   };
 
+  // Helper function to get CFI from href
+  const getCfiFromHref = (book, href) => {
+    try {
+      const [_, id] = href.split("#");
+      const section = book.spine.get(href);
+      if (!section || !section.document) return null;
+
+      const el = id
+        ? section.document.getElementById(id)
+        : section.document.body;
+      return el ? section.cfiFromElement(el) : null;
+    } catch (error) {
+      console.log("[CHAPTER] Error getting CFI from href:", error);
+      return null;
+    }
+  };
+
+  // Enhanced chapter detection using CFI comparison
+  const updateCurrentChapter = (location, bookInstance) => {
+    console.log("[CHAPTER] updateCurrentChapter called");
+
+    if (
+      !bookInstance ||
+      !bookInstance.navigation ||
+      !bookInstance.navigation.toc
+    ) {
+      console.log("[CHAPTER] No navigation or TOC available");
+      return;
+    }
+
+    try {
+      const toc = flatten(bookInstance.navigation.toc);
+      console.log(
+        "[CHAPTER] Available TOC items:",
+        toc.map((item) => ({
+          label: item.label.trim(),
+          href: item.href,
+          id: item.id,
+        }))
+      );
+
+      // Use the advanced CFI-based chapter detection
+      if (location && location.start && location.start.cfi) {
+        console.log(
+          "[CHAPTER] Using CFI-based detection for:",
+          location.start.cfi
+        );
+
+        let match = toc
+          .filter((chapter) => {
+            try {
+              const locationHref = location.start.href;
+              if (!locationHref) return false;
+
+              const canonical1 = bookInstance.canonical
+                ? bookInstance.canonical(chapter.href)
+                : chapter.href;
+              const canonical2 = bookInstance.canonical
+                ? bookInstance.canonical(locationHref)
+                : locationHref;
+
+              return (
+                canonical1.includes(canonical2) ||
+                canonical2.includes(canonical1)
+              );
+            } catch (error) {
+              console.log("[CHAPTER] Error in filter:", error);
+              return false;
+            }
+          })
+          .reduce((result, chapter) => {
+            try {
+              const chapterCfi = getCfiFromHref(bookInstance, chapter.href);
+              if (!chapterCfi) return result;
+
+              // Use EpubJS CFI comparison if available
+              const EpubCFI = window.ePub?.CFI || window.EpubCFI;
+              if (EpubCFI && EpubCFI.prototype.compare) {
+                const locationAfterChapter =
+                  EpubCFI.prototype.compare(location.start.cfi, chapterCfi) > 0;
+                return locationAfterChapter ? chapter : result;
+              } else {
+                // Fallback: simple string comparison
+                return chapter;
+              }
+            } catch (error) {
+              console.log("[CHAPTER] Error in reduce:", error);
+              return result;
+            }
+          }, null);
+
+        if (match) {
+          console.log("[CHAPTER] CFI-based match found:", match);
+          const chapterLabel = match.label.trim();
+          setCurrentChapter(chapterLabel);
+          return;
+        }
+      }
+
+      // Fallback: Use href-based detection
+      console.log("[CHAPTER] Falling back to href-based detection");
+      const currentHref = location.start.href;
+
+      if (currentHref) {
+        // Try exact match first
+        let chapter = toc.find((item) => item.href === currentHref);
+
+        if (!chapter) {
+          // Try base href match (without fragment)
+          const baseHref = currentHref.split("#")[0];
+          chapter = toc.find((item) => item.href?.split("#")[0] === baseHref);
+        }
+
+        if (!chapter) {
+          // Try canonical URL matching
+          chapter = toc.find((item) => {
+            try {
+              const canonical1 = bookInstance.canonical
+                ? bookInstance.canonical(item.href)
+                : item.href;
+              const canonical2 = bookInstance.canonical
+                ? bookInstance.canonical(currentHref)
+                : currentHref;
+              return (
+                canonical1.includes(canonical2) ||
+                canonical2.includes(canonical1)
+              );
+            } catch (error) {
+              return false;
+            }
+          });
+        }
+
+        if (chapter) {
+          console.log("[CHAPTER] Href-based match found:", chapter);
+          const chapterLabel = chapter.label.trim();
+          setCurrentChapter(chapterLabel);
+          return;
+        }
+      }
+
+      console.log("[CHAPTER] No chapter found with any method");
+    } catch (error) {
+      console.error("[CHAPTER] Error in chapter detection:", error);
+    }
+  };
+
   // Update page information with improved accuracy
-  const updatePageInfo = (renditionInstance) => {
+  const updatePageInfo = (renditionInstance, bookInstance) => {
     const currentRendition = renditionInstance || rendition;
-    if (!currentRendition || !book) return;
+    const currentBook = bookInstance || book;
+    if (!currentRendition || !currentBook) {
+      console.log("[PAGE_INFO] Missing rendition or book:", {
+        hasRendition: !!currentRendition,
+        hasBook: !!currentBook,
+      });
+      return;
+    }
 
     try {
       // Get the current location
       const location = currentRendition.currentLocation();
       if (!location || !location.start) {
+        console.log("[PAGE_INFO] No location available:", location);
         return;
       }
 
       const currentCfi = location.start.cfi;
       const currentHref = location.start.href;
 
+      console.log("[PAGE_INFO] Processing location:", {
+        currentCfi,
+        currentHref,
+        hasLocations: !!currentBook.locations,
+        locationsTotal: currentBook.locations?.total,
+      });
+
+      // Check if locations are available
+      if (!currentBook.locations || !currentBook.locations.total) {
+        console.log("[PAGE_INFO] Book locations not ready yet");
+        return;
+      }
+
       // Use percentage-based calculation which is more reliable
-      const currentPercentage = book.locations.percentageFromCfi(currentCfi);
-      const totalPagesEstimate = Math.ceil(book.locations.total / 2) || 100;
+      const percentage = currentBook.locations.percentageFromCfi(currentCfi);
+      const totalPagesEstimate =
+        Math.ceil(currentBook.locations.total / 2) || 100;
       const estimatedCurrentPage = Math.max(
         1,
-        Math.ceil(currentPercentage * totalPagesEstimate)
+        Math.ceil(percentage * totalPagesEstimate)
       );
+
+      console.log("[PAGE_INFO] Calculated values:", {
+        currentCfi,
+        percentage: percentage * 100,
+        estimatedCurrentPage,
+        totalPagesEstimate,
+      });
 
       setCurrentPage(estimatedCurrentPage);
       setTotalPages(totalPagesEstimate);
+      setCurrentPercentage(Math.round(percentage * 100)); // Set percentage here
     } catch (error) {
       console.error("Error updating page info:", error);
 
@@ -1497,6 +1724,10 @@ function EpubReader() {
       }
 
       // Store current CFI and percentage in state for immediate access
+      console.log(
+        "[CFI] Setting currentCFI from saveReadingProgress:",
+        cfiToSave
+      );
       setCurrentCFI(cfiToSave);
     } catch (error) {
       console.error("Error saving reading progress:", error);
@@ -1639,7 +1870,7 @@ function EpubReader() {
       <TextSelectionCoordinates
         bookValue={bookValue}
         book={book}
-        updatePageInfo={() => updatePageInfo()}
+        updatePageInfo={() => updatePageInfo(rendition, book)}
         rendition={rendition}
         saveReadingProgress={saveReadingProgress}
         setForceUpdate={setForceUpdate}
@@ -1649,22 +1880,38 @@ function EpubReader() {
           showTitleBar ? "" : "opacity-low"
         } transition-opacity duration-300`}
       >
-        <ReaderMenu
-          book={book}
-          bookValue={bookValue}
-          saveReadingProgress={saveReadingProgress}
-          rendition={rendition}
-          selectedColor={null}
-          currentCFI={currentCFI}
-          currentChapter={currentChapter}
-        />
+        <div className="desktop-reader-menu">
+          <ReaderMenu
+            book={book}
+            bookValue={bookValue}
+            saveReadingProgress={saveReadingProgress}
+            rendition={rendition}
+            selectedColor={null}
+            currentCFI={currentCFI}
+            currentChapter={currentChapter}
+          />
+        </div>
 
         <div id="metainfo">
           <span id="book-title">{bookData.author}</span>
           <span id="title-separator">&nbsp;&nbsp;–&nbsp;&nbsp;</span>
           <span id="chapter-title">{currentChapter || bookData.title}</span>
         </div>
+
         <div id="title-controls">
+          {/* Mobile-only: Add ReaderMenu icons */}
+          <div className="mobile-reader-icons">
+            <ReaderMenu
+              book={book}
+              bookValue={bookValue}
+              saveReadingProgress={saveReadingProgress}
+              rendition={rendition}
+              selectedColor={null}
+              currentCFI={currentCFI}
+              currentChapter={currentChapter}
+            />
+          </div>
+
           <Button
             isIconOnly
             onClick={toggleTheme}

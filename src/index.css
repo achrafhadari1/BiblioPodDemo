@@ -424,9 +424,6 @@ code {
   height: 32rem;
 }
 @media screen and (max-width: 800px) {
-  #chapter-title {
-    display: none;
-  }
   #radix-\:r2b\: {
     padding: 2rem;
   }

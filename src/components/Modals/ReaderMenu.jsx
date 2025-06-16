@@ -47,16 +47,22 @@ export const ReaderMenu = ({
   const [lastAnnotationTime, setLastAnnotationTime] = useState(0);
   const router = useRouter();
 
-  // Bookmark manager props
-  const bookmarkManagerProps = {
-    bookValue,
-    rendition,
-    currentCFI,
-    currentChapter,
-    onNavigateToBookmark: (bookmark) => {
-      setIsOpen(false);
-    },
-  };
+  // Bookmark manager props - use useMemo to ensure re-render when currentCFI changes
+  const bookmarkManagerProps = useMemo(() => {
+    console.log(
+      "[READER_MENU] Creating bookmarkManagerProps with currentCFI:",
+      currentCFI
+    );
+    return {
+      bookValue,
+      rendition,
+      currentCFI,
+      currentChapter,
+      onNavigateToBookmark: (bookmark) => {
+        setIsOpen(false);
+      },
+    };
+  }, [bookValue, rendition, currentCFI, currentChapter]);
 
   const fetchAnnotations = async () => {
     try {
@@ -96,13 +102,7 @@ export const ReaderMenu = ({
     const el = id ? item.document.getElementById(id) : item.document.body;
     const chapterCFI = item.cfiFromElement(el);
 
-    const newPercentage =
-      rendition.book.locations.percentageFromCfi(chapterCFI) * 100;
-
-    setCurrentCFI((prevCFI) => {
-      return { newCFI: chapterCFI, newPercentage };
-    });
-
+    // Just navigate to the chapter - currentCFI will be updated by locationChanged event
     rendition.display(chapterCFI);
   };
 

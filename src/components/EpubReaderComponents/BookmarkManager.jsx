@@ -186,7 +186,13 @@ const BookmarkManager = ({
     <Button
       isIconOnly
       variant="light"
-      onClick={toggleCurrentPageBookmark}
+      onClick={(e) => {
+        console.log("[BOOKMARK] Button clicked!", {
+          currentCFI,
+          isCurrentPageBookmarked,
+        });
+        toggleCurrentPageBookmark(e);
+      }}
       className={`transition-colors ${
         isCurrentPageBookmarked
           ? "text-yellow-600 hover:text-yellow-700"

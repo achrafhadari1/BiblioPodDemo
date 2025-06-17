@@ -148,7 +148,8 @@ const BookmarkManager = ({
                       <div>Progress: {bookmark.percentage}%</div>
                     )}
                     <div>
-                      Added: {new Date(bookmark.createdAt).toLocaleDateString()}
+                      Added:{" "}
+                      {new Date(bookmark.created_at).toLocaleDateString()}
                     </div>
                   </div>
                 </div>

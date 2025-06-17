@@ -39,6 +39,7 @@ export const ReaderMenu = ({
   saveReadingProgress,
   currentCFI,
   currentChapter,
+  setIsNavigatingToChapter,
 }) => {
   const [chapters, setChapters] = useState([]);
   const [annotations, setAnnotations] = useState([]);
@@ -99,11 +100,65 @@ export const ReaderMenu = ({
     const id = href.split("#")[1];
     const item = book.spine.get(href);
     await item.load(book.load.bind(book));
-    const el = id ? item.document.getElementById(id) : item.document.body;
-    const chapterCFI = item.cfiFromElement(el);
 
-    // Just navigate to the chapter - currentCFI will be updated by locationChanged event
-    rendition.display(chapterCFI);
+    // Check if we're in scrolled mode - if so, always go to chapter beginning
+    const isScrolledMode = rendition.settings.flow === "scrolled";
+    console.log(
+      "[GOTO_CHAPTER] Navigating to chapter, scrolled mode:",
+      isScrolledMode,
+      "href:",
+      href
+    );
+
+    // Set navigation flag to prevent scroll position restoration
+    if (isScrolledMode && setIsNavigatingToChapter) {
+      setIsNavigatingToChapter(true);
+      console.log(
+        "[GOTO_CHAPTER] Set navigation flag to prevent scroll restoration"
+      );
+    }
+
+    let el, chapterCFI;
+    if (isScrolledMode) {
+      // In scrolled mode, always go to the very beginning of the chapter
+      // Use the first element in the body to ensure we're at the top
+      const firstElement =
+        item.document.body.firstElementChild || item.document.body;
+      chapterCFI = item.cfiFromElement(firstElement);
+      console.log(
+        "[GOTO_CHAPTER] Using chapter beginning CFI for scrolled mode:",
+        chapterCFI
+      );
+
+      // Navigate and then explicitly scroll to top
+      await rendition.display(chapterCFI);
+
+      // Force scroll to top in scrolled mode and clear navigation flag
+      setTimeout(() => {
+        const iframe = rendition.getContents()[0];
+        if (iframe && iframe.window) {
+          iframe.window.scrollTo(0, 0);
+          console.log("[GOTO_CHAPTER] Forced scroll to top in scrolled mode");
+        }
+
+        // Clear navigation flag after a delay to ensure all font applications are done
+        setTimeout(() => {
+          if (setIsNavigatingToChapter) {
+            setIsNavigatingToChapter(false);
+            console.log("[GOTO_CHAPTER] Cleared navigation flag");
+          }
+        }, 500);
+      }, 100);
+    } else {
+      // In paginated mode, use the specific element if available
+      el = id ? item.document.getElementById(id) : item.document.body;
+      chapterCFI = item.cfiFromElement(el);
+      console.log(
+        "[GOTO_CHAPTER] Using specific element CFI for paginated mode:",
+        chapterCFI
+      );
+      rendition.display(chapterCFI);
+    }
   };
 
   // Remove this useEffect since currentChapter is now a prop
@@ -319,8 +374,8 @@ export const ReaderMenu = ({
                             )}
                             onClick={() => {
                               gotoChapter(chapter.href);
-                              saveReadingProgress();
                               setIsOpen(false);
+                              // Don't save immediately - let the locationChanged event handle it
                             }}
                           >
                             {chapter.label}

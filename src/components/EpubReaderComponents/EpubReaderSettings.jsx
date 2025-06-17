@@ -13,7 +13,7 @@ import { Button } from "../ui/button";
 import { IoSettingsOutline } from "react-icons/io5";
 import { Slider, Button as NextUIButton } from "@nextui-org/react";
 import "../../styles/fonts.css";
-
+import { GalleryVertical, GalleryHorizontal } from "lucide-react";
 export const EpubReaderSettings = ({
   rendition,
   fontSize,
@@ -111,29 +111,31 @@ export const EpubReaderSettings = ({
                 <div className="flex gap-2 w-full">
                   <button
                     onClick={() => handleReadingModeChange("paginated")}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                       readingMode === "paginated"
                         ? "bg-blue-500 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    📖 Paginated
+                    <GalleryHorizontal className="w-4 h-4" />
+                    Paginated
                   </button>
                   <button
                     onClick={() => handleReadingModeChange("scrolled")}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                       readingMode === "scrolled"
                         ? "bg-blue-500 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    📜 Vertical
+                    <GalleryVertical className="w-4 h-4" />
+                    Vertical
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 text-center">
                   {readingMode === "paginated"
                     ? "Turn pages horizontally"
-                    : "Scroll vertically through content"}
+                    : "Scroll vertically through content *beta*"}
                 </p>
               </div>
             </div>

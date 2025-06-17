@@ -5,12 +5,6 @@ import { useNavigate } from "react-router-dom";
 export const HomeSidebar = ({ user, sortedFilteredBooks }) => {
   const navigate = useNavigate();
 
-  const { logout } = useAuthContext();
-  const handleLogout = () => {
-    logout(); // sets user to null and removes token
-    localStorage.removeItem("token");
-    navigate("/login");
-  };
   return (
     <div className="w-[320px] border-l border-gray-100 flex flex-col overflow-y-auto">
       <div className="p-5 border-b border-gray-100 flex items-center justify-between">
@@ -25,27 +19,6 @@ export const HomeSidebar = ({ user, sortedFilteredBooks }) => {
           <span className="text-sm font-medium">
             {user?.name || "Alexander Mark"}
           </span>
-        </div>
-        <div
-          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center cursor-pointer"
-          onClick={handleLogout}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="lucide lucide-log-out-icon lucide-log-out"
-          >
-            <path d="m16 17 5-5-5-5" />
-            <path d="M21 12H9" />
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-          </svg>
         </div>
       </div>
 

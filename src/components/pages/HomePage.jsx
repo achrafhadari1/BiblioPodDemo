@@ -71,12 +71,7 @@ export const HomePage = () => {
     handleFileChange,
     updateStorageUsage,
   } = useFileUploadImproved(user, fetchBooks);
-  const handleLogout = () => {
-    router.push("/login");
-    logout(); // sets user to null and removes token
 
-    localStorage.removeItem("token");
-  };
   // Function to get selected book from localStorage
   const getSelectedBook = () => {
     const stored = localStorage.getItem("selectedBook");
@@ -451,27 +446,6 @@ export const HomePage = () => {
             <span className="text-sm font-medium">
               {user?.name || "Alexander Mark"}
             </span>
-          </div>
-          <div
-            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center cursor-pointer"
-            onClick={handleLogout}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="lucide lucide-log-out-icon lucide-log-out"
-            >
-              <path d="m16 17 5-5-5-5" />
-              <path d="M21 12H9" />
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            </svg>
           </div>
         </div>
 

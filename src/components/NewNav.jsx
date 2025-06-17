@@ -11,6 +11,7 @@ import {
   Bookmark,
   Clock,
   House,
+  Coffee,
   Library,
   Menu,
   Settings,
@@ -76,7 +77,10 @@ export const NewNav = () => {
         </div>
 
         <div className="mt-auto">
-          <Menu size={20} className="text-gray-400" />
+          <NavItem
+            icon={<Coffee size={20} />}
+            to="https://ko-fi.com/bibliopod"
+          />{" "}
         </div>
       </div>
 
@@ -139,6 +143,25 @@ export const NewNav = () => {
 };
 
 const NavItem = ({ icon, active, to }) => {
+  const isExternal = to.startsWith("http");
+
+  if (isExternal) {
+    return (
+      <a
+        href={to}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`p-2 rounded-lg ${
+          active
+            ? "bg-amber-50 text-amber-500"
+            : "text-gray-400 hover:text-gray-600"
+        }`}
+      >
+        {icon}
+      </a>
+    );
+  }
+
   return (
     <Link
       href={to}

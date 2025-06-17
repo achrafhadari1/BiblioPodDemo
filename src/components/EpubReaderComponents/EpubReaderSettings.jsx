@@ -84,9 +84,6 @@ export const EpubReaderSettings = ({
           </NextUIButton>
         </DrawerTrigger>
         <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>SETTINGS</DrawerTitle>
-          </DrawerHeader>
           <div className="flex-col flex w-full items-center mb-8 gap-8">
             <div className="flex flex-col gap-6 px-8 w-full max-w-md">
               <Slider

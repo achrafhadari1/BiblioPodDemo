@@ -18,8 +18,10 @@ export const EpubReaderSettings = ({
   rendition,
   fontSize,
   fontFamily,
+  readingMode,
   updateFontSize,
   updateFontFamily,
+  updateReadingMode,
 }) => {
   const [fontSlider, setFontSlider] = useState(0.7);
 
@@ -63,6 +65,11 @@ export const EpubReaderSettings = ({
     updateFontFamily(fontName);
   };
 
+  // Function to handle reading mode change
+  const handleReadingModeChange = (mode) => {
+    updateReadingMode(mode);
+  };
+
   return (
     <>
       <Drawer>
@@ -95,6 +102,40 @@ export const EpubReaderSettings = ({
                 defaultValue={0.5}
                 className="max-w-md"
               />
+
+              {/* Reading Mode Toggle */}
+              <div className="flex flex-col gap-3">
+                <label className="text-sm font-medium text-gray-700">
+                  Reading Mode
+                </label>
+                <div className="flex gap-2 w-full">
+                  <button
+                    onClick={() => handleReadingModeChange("paginated")}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      readingMode === "paginated"
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    📖 Paginated
+                  </button>
+                  <button
+                    onClick={() => handleReadingModeChange("scrolled")}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      readingMode === "scrolled"
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    📜 Vertical
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 text-center">
+                  {readingMode === "paginated"
+                    ? "Turn pages horizontally"
+                    : "Scroll vertically through content"}
+                </p>
+              </div>
             </div>
             <div className="fontContainer flex w-full justify-center gap-4 flex-wrap">
               {availableFonts.map((font) => (

@@ -38,6 +38,7 @@ class UserPreferencesDB {
             { key: "theme", value: "light" },
             { key: "fontSize", value: 0.7 },
             { key: "fontFamily", value: "Lora" },
+            { key: "readingMode", value: "paginated" },
           ];
 
           store.transaction.oncomplete = () => {
@@ -122,6 +123,14 @@ class UserPreferencesDB {
 
   async setFontFamily(fontFamily) {
     return await this.setPreference("fontFamily", fontFamily);
+  }
+
+  async getReadingMode() {
+    return (await this.getPreference("readingMode")) || "paginated";
+  }
+
+  async setReadingMode(readingMode) {
+    return await this.setPreference("readingMode", readingMode);
   }
 }
 

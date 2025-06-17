@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS = {
   fontSize: 0.7, // This matches the default in userPreferencesDB
   fontFamily: "Lora",
   isDarkTheme: false,
+  readingMode: "paginated", // "paginated" or "scrolled"
 };
 
 function EpubReader() {
@@ -50,6 +51,7 @@ function EpubReader() {
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [fontSize, setFontSize] = useState(DEFAULT_SETTINGS.fontSize);
   const [fontFamily, setFontFamily] = useState(DEFAULT_SETTINGS.fontFamily);
+  const [readingMode, setReadingMode] = useState(DEFAULT_SETTINGS.readingMode);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [currentCFI, setCurrentCFI] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -76,6 +78,7 @@ function EpubReader() {
 
   // Touch/swipe state - using refs to avoid race conditions
   const touchStartRef = useRef(null);
+  const touchStartYRef = useRef(null);
   const touchEndRef = useRef(null);
   const isSwipingRef = useRef(false);
   const lastSwipeTimeRef = useRef(0);
@@ -112,21 +115,42 @@ function EpubReader() {
   const resetSwipeState = useCallback(() => {
     isSwipingRef.current = false;
     touchStartRef.current = null;
+    touchStartYRef.current = null;
     touchEndRef.current = null;
   }, []);
 
   // Navigation functions (defined first to avoid dependency issues)
   const nextBtn = useCallback(() => {
     if (!rendition) return;
-    rendition.next();
+
+    if (readingMode === "scrolled") {
+      // In scrolled mode, scroll down by viewport height
+      const iframe = rendition.getContents()[0];
+      if (iframe && iframe.window) {
+        iframe.window.scrollBy(0, iframe.window.innerHeight * 0.8);
+      }
+    } else {
+      // In paginated mode, go to next page
+      rendition.next();
+    }
     updatePageInfo(rendition, book);
-  }, [rendition, book]);
+  }, [rendition, book, readingMode]);
 
   const backBtn = useCallback(() => {
     if (!rendition) return;
-    rendition.prev();
+
+    if (readingMode === "scrolled") {
+      // In scrolled mode, scroll up by viewport height
+      const iframe = rendition.getContents()[0];
+      if (iframe && iframe.window) {
+        iframe.window.scrollBy(0, -iframe.window.innerHeight * 0.8);
+      }
+    } else {
+      // In paginated mode, go to previous page
+      rendition.prev();
+    }
     updatePageInfo(rendition, book);
-  }, [rendition, book]);
+  }, [rendition, book, readingMode]);
 
   // Double-tap detection for mobile hover
   const handleDoubleTap = useCallback((e) => {
@@ -185,7 +209,9 @@ function EpubReader() {
       }
 
       const startX = e.targetTouches[0].clientX;
+      const startY = e.targetTouches[0].clientY;
       touchStartRef.current = startX;
+      touchStartYRef.current = startY;
       touchEndRef.current = null;
       isSwipingRef.current = true;
 
@@ -198,20 +224,38 @@ function EpubReader() {
     [handleDoubleTap]
   );
 
-  const onTouchMove = useCallback((e) => {
-    if (!touchStartRef.current || !isSwipingRef.current) return;
+  const onTouchMove = useCallback(
+    (e) => {
+      if (!touchStartRef.current || !isSwipingRef.current) return;
 
-    const currentX = e.targetTouches[0].clientX;
-    touchEndRef.current = currentX;
+      const currentX = e.targetTouches[0].clientX;
+      touchEndRef.current = currentX;
 
-    // Prevent default scrolling if this looks like a horizontal swipe
-    const distance = Math.abs(currentX - touchStartRef.current);
-    if (distance > 10) {
-      e.preventDefault();
-    }
+      // In scrolled mode, allow vertical scrolling but prevent horizontal swipes
+      // In paginated mode, prevent all scrolling for horizontal swipes
+      const distance = Math.abs(currentX - touchStartRef.current);
+      if (distance > 10) {
+        if (readingMode === "paginated") {
+          // In paginated mode, prevent all scrolling for swipes
+          e.preventDefault();
+        } else {
+          // In scrolled mode, only prevent horizontal movement
+          // Allow vertical scrolling to continue naturally
+          const currentY = e.targetTouches[0].clientY;
+          const startY = touchStartYRef.current;
+          const verticalDistance = startY ? Math.abs(currentY - startY) : 0;
 
-    console.log("[SWIPE] Touch move detected at X:", currentX);
-  }, []);
+          // Only prevent if it's clearly a horizontal swipe (more horizontal than vertical)
+          if (distance > verticalDistance) {
+            e.preventDefault();
+          }
+        }
+      }
+
+      console.log("[SWIPE] Touch move detected at X:", currentX);
+    },
+    [readingMode]
+  );
 
   const onTouchEnd = useCallback(
     (e) => {
@@ -225,6 +269,7 @@ function EpubReader() {
       const cleanup = () => {
         isSwipingRef.current = false;
         touchStartRef.current = null;
+        touchStartYRef.current = null;
         touchEndRef.current = null;
         console.log("[SWIPE] State cleaned up");
       };
@@ -444,6 +489,7 @@ function EpubReader() {
       // Reset swipe state on cleanup
       isSwipingRef.current = false;
       touchStartRef.current = null;
+      touchStartYRef.current = null;
       touchEndRef.current = null;
     };
   }, [
@@ -474,22 +520,26 @@ function EpubReader() {
         const theme = await userPreferencesDB.getTheme();
         const savedFontSize = await userPreferencesDB.getFontSize();
         const savedFontFamily = await userPreferencesDB.getFontFamily();
+        const savedReadingMode = await userPreferencesDB.getReadingMode();
 
         console.log("Loaded preferences:", {
           theme,
           savedFontSize,
           savedFontFamily,
+          savedReadingMode,
         });
 
         setIsDarkTheme(theme === "dark");
         setFontSize(savedFontSize || DEFAULT_SETTINGS.fontSize);
         setFontFamily(savedFontFamily || DEFAULT_SETTINGS.fontFamily);
+        setReadingMode(savedReadingMode || DEFAULT_SETTINGS.readingMode);
       } catch (error) {
         console.error("Error loading saved settings:", error);
         // Use defaults if there's an error
         setIsDarkTheme(DEFAULT_SETTINGS.isDarkTheme);
         setFontSize(DEFAULT_SETTINGS.fontSize);
         setFontFamily(DEFAULT_SETTINGS.fontFamily);
+        setReadingMode(DEFAULT_SETTINGS.readingMode);
       } finally {
         setPreferencesLoaded(true);
       }
@@ -1292,17 +1342,50 @@ function EpubReader() {
 
     try {
       console.log("[DEBUG] Creating rendition with element:", viewerElement);
-      const newRendition = loadedBook.renderTo(viewerElement, {
+      // Configure rendition options based on reading mode
+      const renditionOptions = {
         width: `${window.innerWidth}px`,
         height: "90vh",
         ignoreClass: "annotator-hl",
         manager: "default",
-      });
+      };
+
+      // Set flow mode based on reading preference
+      if (readingMode === "scrolled") {
+        renditionOptions.flow = "scrolled";
+        renditionOptions.manager = "continuous";
+      } else {
+        renditionOptions.flow = "paginated";
+        renditionOptions.manager = "default";
+      }
+
+      console.log("Creating rendition with options:", renditionOptions);
+      const newRendition = loadedBook.renderTo(viewerElement, renditionOptions);
       console.log("[DEBUG] Rendition created successfully");
 
       // Apply global font styles before displaying content
       // First inject font definitions
       injectFontDefinitions(newRendition);
+
+      // Add smooth scrolling for scrolled mode
+      if (readingMode === "scrolled") {
+        newRendition.on("rendered", () => {
+          const iframe = newRendition.getContents()[0];
+          if (iframe && iframe.document) {
+            const style = iframe.document.createElement("style");
+            style.textContent = `
+              html {
+                scroll-behavior: smooth;
+              }
+              body {
+                overflow-x: hidden;
+                overflow-y: auto;
+              }
+            `;
+            iframe.document.head.appendChild(style);
+          }
+        });
+      }
 
       const fontWithFallback = getFontWithFallback(fontFamily);
 
@@ -1969,6 +2052,163 @@ function EpubReader() {
     }
   };
 
+  // Function to set up rendition event listeners
+  const setupRenditionEventListeners = (rendition) => {
+    // Track current chapter and update page info
+    rendition.on("locationChanged", (location) => {
+      console.log("[LOCATION] locationChanged event fired");
+      console.log("[LOCATION] - location.start.cfi:", location.start.cfi);
+      console.log("[LOCATION] - location.end.cfi:", location.end?.cfi);
+      console.log("[LOCATION] - location.start.href:", location.start.href);
+      console.log(
+        "[LOCATION] - Current state currentCFI before update:",
+        currentCFI
+      );
+      console.log(
+        "[LOCATION] - About to call updatePageInfo and chapter detection"
+      );
+      updatePageInfo(rendition, book);
+
+      // Update current chapter with enhanced detection
+      updateCurrentChapter(location, book);
+
+      // Update current CFI (try both location.start.cfi and location.start)
+      const newCFI = location.start.cfi || location.start;
+      if (newCFI) {
+        console.log("[CFI] Setting currentCFI from locationChanged:", newCFI);
+        setCurrentCFI(newCFI);
+      } else {
+        console.log(
+          "[CFI] Skipping undefined/null CFI from locationChanged, location:",
+          location
+        );
+      }
+
+      // Reapply font settings on each page change
+      applyFontSettings();
+
+      // Reset swipe state when location changes (e.g., chapter navigation)
+      console.log("[SWIPE] Location changed - resetting swipe state");
+      resetSwipeState();
+    });
+  };
+
+  // Update reading mode
+  const updateReadingMode = async (newMode) => {
+    console.log("Updating reading mode to:", newMode);
+    setReadingMode(newMode);
+
+    // Save to IndexedDB
+    try {
+      await userPreferencesDB.setReadingMode(newMode);
+    } catch (error) {
+      console.error("Error saving reading mode setting:", error);
+    }
+
+    // Recreate rendition with new flow mode if book is loaded
+    if (book && viewerRef.current && rendition) {
+      console.log("Recreating rendition with new reading mode:", newMode);
+
+      // Store current location before destroying rendition
+      let currentLocation = null;
+      try {
+        currentLocation = rendition.currentLocation();
+      } catch (error) {
+        console.warn("Could not get current location:", error);
+      }
+
+      // Destroy current rendition
+      try {
+        rendition.destroy();
+      } catch (error) {
+        console.warn("Error destroying rendition:", error);
+      }
+
+      // Clear the viewer element
+      const viewerElement = viewerRef.current;
+      if (viewerElement) {
+        viewerElement.innerHTML = "";
+      }
+
+      // Create new rendition with updated reading mode
+      try {
+        // Configure rendition options based on reading mode
+        const renditionOptions = {
+          width: `${window.innerWidth}px`,
+          height: "90vh",
+          ignoreClass: "annotator-hl",
+          manager: "default",
+        };
+
+        // Set flow mode based on reading preference
+        if (newMode === "scrolled") {
+          renditionOptions.flow = "scrolled";
+          renditionOptions.manager = "continuous";
+        } else {
+          renditionOptions.flow = "paginated";
+          renditionOptions.manager = "default";
+        }
+
+        console.log("Creating new rendition with options:", renditionOptions);
+        const newRendition = book.renderTo(viewerElement, renditionOptions);
+
+        // Apply font styles
+        injectFontDefinitions(newRendition);
+
+        // Add smooth scrolling for scrolled mode
+        if (newMode === "scrolled") {
+          newRendition.on("rendered", () => {
+            const iframe = newRendition.getContents()[0];
+            if (iframe && iframe.document) {
+              const style = iframe.document.createElement("style");
+              style.textContent = `
+                html {
+                  scroll-behavior: smooth;
+                }
+                body {
+                  overflow-x: hidden;
+                  overflow-y: auto;
+                }
+              `;
+              iframe.document.head.appendChild(style);
+            }
+          });
+        }
+
+        // Apply theme and font styles
+        const fontWithFallback = getFontWithFallback(fontFamily);
+        newRendition.themes.default({
+          body: {
+            "font-family": `${fontWithFallback} !important`,
+            "font-size": `${fontSize}em !important`,
+            "line-height": "1.6 !important",
+            color: isDarkTheme ? "#e0e0e0 !important" : "#333 !important",
+            "background-color": isDarkTheme ? "#000000" : "#ffffff !important",
+          },
+        });
+
+        // Display the book at the previous location or start
+        const locationToDisplay =
+          currentLocation?.start?.cfi || currentCFI || book.locations?.start;
+        if (locationToDisplay) {
+          await newRendition.display(locationToDisplay);
+        } else {
+          await newRendition.display();
+        }
+
+        // Set up event listeners
+        setupRenditionEventListeners(newRendition);
+
+        // Update state
+        setRendition(newRendition);
+
+        console.log("Successfully recreated rendition with new reading mode");
+      } catch (error) {
+        console.error("Error recreating rendition:", error);
+      }
+    }
+  };
+
   // Toggle fullscreen
   const toggleFullscreen = () => {
     const root = document.getElementById("root");
@@ -2080,8 +2320,10 @@ function EpubReader() {
             rendition={rendition}
             fontSize={fontSize}
             fontFamily={fontFamily}
+            readingMode={readingMode}
             updateFontSize={updateFontSize}
             updateFontFamily={updateFontFamily}
+            updateReadingMode={updateReadingMode}
           />
           <Button
             isIconOnly

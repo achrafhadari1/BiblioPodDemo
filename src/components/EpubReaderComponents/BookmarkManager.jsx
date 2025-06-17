@@ -55,7 +55,6 @@ const BookmarkManager = ({
     try {
       const bookmark = {
         id: `bookmark-${Date.now()}`,
-        bookIsbn: bookValue,
         cfi: currentCFI,
         chapter: currentChapter || "Unknown Chapter",
         pageNumber: rendition.book.locations
@@ -66,7 +65,6 @@ const BookmarkManager = ({
               rendition.book.locations.percentageFromCfi(currentCFI) * 100
             )
           : null,
-        createdAt: new Date().toISOString(),
         note: "",
       };
 

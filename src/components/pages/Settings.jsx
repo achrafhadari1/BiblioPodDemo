@@ -4,12 +4,14 @@ import React, { useState, useEffect } from "react";
 import {
   ArrowLeft,
   BookOpen,
+  Camera,
   Download,
   RefreshCw,
   Save,
   Trash2,
   Upload,
   User,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -22,7 +24,10 @@ export const Settings = () => {
   // User profile states
   const [userProfile, setUserProfile] = useState({
     name: "",
+    avatar: "",
   });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
 
   // App settings states
   const [fontSize, setFontSize] = useState("medium");
@@ -50,6 +55,7 @@ export const Settings = () => {
     books: true,
     collections: true,
     highlights: true,
+    bookmarks: true,
     progress: true,
     challenges: true,
     settings: true,
@@ -61,6 +67,7 @@ export const Settings = () => {
     books: true,
     collections: true,
     highlights: true,
+    bookmarks: true,
     progress: true,
     challenges: true,
     settings: true,
@@ -73,9 +80,45 @@ export const Settings = () => {
     if (user) {
       setUserProfile({
         name: user.name || "",
+        avatar: user.avatar || "",
       });
     }
   }, [user]);
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Avatar image must be less than 5MB");
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith("image/")) {
+        toast.error("Please select an image file");
+        return;
+      }
+
+      setAvatarFile(file);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAvatarPreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setUserProfile({
+      ...userProfile,
+      avatar: "",
+    });
+  };
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
@@ -84,15 +127,32 @@ export const Settings = () => {
     try {
       const { bookStorageDB } = await import("../../utils/bookStorageDB");
 
+      let avatarData = userProfile.avatar;
+
+      // Handle avatar upload
+      if (avatarFile) {
+        const reader = new FileReader();
+        avatarData = await new Promise((resolve) => {
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(avatarFile);
+        });
+      }
+
       // Update user data in IndexedDB
       const updatedUser = {
         ...user,
         name: userProfile.name,
+        avatar: avatarData,
         updated_at: new Date().toISOString(),
       };
 
       await bookStorageDB.setUser(updatedUser);
       await getUser(); // Refresh user data
+
+      // Clear avatar file state after successful save
+      setAvatarFile(null);
+      setAvatarPreview(null);
+
       toast.success("Profile updated successfully");
     } catch (error) {
       console.error("Profile update error:", error);
@@ -209,6 +269,12 @@ export const Settings = () => {
         const highlights = await bookStorageDB.getHighlights();
         exportData.highlights = highlights;
         zip.file("highlights.json", JSON.stringify(highlights, null, 2));
+      }
+
+      if (exportSelection.bookmarks) {
+        const bookmarks = await bookStorageDB.getAllBookmarks();
+        exportData.bookmarks = bookmarks;
+        zip.file("bookmarks.json", JSON.stringify(bookmarks, null, 2));
       }
 
       if (exportSelection.progress) {
@@ -392,6 +458,64 @@ export const Settings = () => {
         }
       }
 
+      if (importSelection.bookmarks && zipContent.files["bookmarks.json"]) {
+        const bookmarksData = JSON.parse(
+          await zipContent.files["bookmarks.json"].async("text")
+        );
+        console.log(
+          "Importing bookmarks:",
+          bookmarksData.length,
+          "bookmarks found"
+        );
+
+        for (const bookmark of bookmarksData) {
+          try {
+            console.log("Processing bookmark:", bookmark);
+
+            // Handle both old and new field naming conventions
+            const bookIsbn = bookmark.book_isbn || bookmark.bookIsbn;
+
+            // Check if bookmark already exists by comparing CFI and book_isbn
+            const existingBookmarks = await bookStorageDB.getAllBookmarks();
+            const exists = existingBookmarks.find(
+              (b) => b.cfi === bookmark.cfi && b.book_isbn === bookIsbn
+            );
+
+            if (!exists) {
+              // Remove all fields that addBookmark will add/override
+              const {
+                id,
+                created_at,
+                createdAt,
+                book_isbn,
+                bookIsbn,
+                ...bookmarkData
+              } = bookmark;
+              console.log(
+                "Adding bookmark for book:",
+                bookIsbn,
+                "with data:",
+                bookmarkData
+              );
+
+              await bookStorageDB.addBookmark(bookIsbn, bookmarkData);
+              importedCount++;
+              console.log("Successfully imported bookmark");
+            } else {
+              console.log("Bookmark already exists, skipping");
+            }
+          } catch (error) {
+            console.error(
+              `Failed to import bookmark:`,
+              error,
+              "Bookmark data:",
+              bookmark
+            );
+            // Continue with next bookmark instead of failing the entire import
+          }
+        }
+      }
+
       if (
         importSelection.progress &&
         zipContent.files["reading_progress.json"]
@@ -479,12 +603,39 @@ export const Settings = () => {
                 <div className="flex flex-col items-center">
                   <div className="relative mb-3">
                     <img
-                      src="/profile.jpg"
+                      src={
+                        avatarPreview || userProfile.avatar || "/profile.jpg"
+                      }
                       alt="Profile"
                       className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-md"
                     />
+
+                    {/* Upload button */}
+                    <label className="absolute bottom-0 right-0 bg-amber-500 hover:bg-amber-600 text-white p-2 rounded-full cursor-pointer shadow-lg transition-colors">
+                      <Camera size={16} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {/* Remove button */}
+                    {(avatarPreview || userProfile.avatar) && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatar}
+                        className="absolute top-0 right-0 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full shadow-lg transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm text-gray-500">Profile Picture</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Click camera to upload
+                  </p>
                 </div>
 
                 <div className="flex-1 space-y-4">
@@ -855,7 +1006,11 @@ export const Settings = () => {
                     className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                   />
                   <span className="text-sm font-medium text-gray-700 capitalize">
-                    {key === "progress" ? "Reading Progress" : key}
+                    {key === "progress"
+                      ? "Reading Progress"
+                      : key === "bookmarks"
+                      ? "Bookmarks"
+                      : key}
                   </span>
                 </label>
               ))}
@@ -955,7 +1110,11 @@ export const Settings = () => {
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm font-medium text-gray-700 capitalize">
-                    {key === "progress" ? "Reading Progress" : key}
+                    {key === "progress"
+                      ? "Reading Progress"
+                      : key === "bookmarks"
+                      ? "Bookmarks"
+                      : key}
                   </span>
                 </label>
               ))}

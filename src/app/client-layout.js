@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import { NewNav } from "../components/NewNav";
-import ShowcaseBanner from "../components/ShowcaseBanner";
 
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
@@ -19,7 +18,6 @@ export default function ClientLayout({ children }) {
 
   return (
     <>
-      <ShowcaseBanner />
       {!hideNav && <NewNav />}
       {children}
     </>

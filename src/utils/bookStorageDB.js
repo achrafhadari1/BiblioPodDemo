@@ -236,6 +236,10 @@ class BiblioPodDB {
     try {
       await this.promisifyRequest(booksStore.delete(isbn));
       await this.promisifyRequest(filesStore.delete(isbn));
+
+      // Also clean up associated bookmarks
+      await this.deleteAllBookmarksForBook(isbn);
+
       return true;
     } catch (error) {
       console.error("Error deleting book:", error);
@@ -478,6 +482,13 @@ class BiblioPodDB {
     return this.promisifyRequest(index.getAll(bookIsbn));
   }
 
+  async getAllBookmarks() {
+    if (!this.db) await this.init();
+    const transaction = this.db.transaction([BOOKMARKS_STORE], "readonly");
+    const store = transaction.objectStore(BOOKMARKS_STORE);
+    return this.promisifyRequest(store.getAll());
+  }
+
   async addBookmark(bookIsbn, bookmarkData) {
     if (!this.db) await this.init();
     const transaction = this.db.transaction([BOOKMARKS_STORE], "readwrite");
@@ -507,6 +518,44 @@ class BiblioPodDB {
       return this.promisifyRequest(store.put(updatedBookmark));
     }
     return false;
+  }
+
+  async deleteAllBookmarksForBook(bookIsbn) {
+    if (!this.db) await this.init();
+    const transaction = this.db.transaction([BOOKMARKS_STORE], "readwrite");
+    const store = transaction.objectStore(BOOKMARKS_STORE);
+    const index = store.index("book_isbn");
+    const bookmarks = await this.promisifyRequest(index.getAll(bookIsbn));
+
+    // Delete each bookmark
+    for (const bookmark of bookmarks) {
+      await this.promisifyRequest(store.delete(bookmark.id));
+    }
+
+    return bookmarks.length;
+  }
+
+  async cleanupOrphanedBookmarks() {
+    if (!this.db) await this.init();
+
+    // Get all books and all bookmarks
+    const books = await this.getAllBooks();
+    const bookIsbns = new Set(books.map((book) => book.isbn));
+    const allBookmarks = await this.getAllBookmarks();
+
+    let deletedCount = 0;
+    const transaction = this.db.transaction([BOOKMARKS_STORE], "readwrite");
+    const store = transaction.objectStore(BOOKMARKS_STORE);
+
+    // Delete bookmarks for books that no longer exist
+    for (const bookmark of allBookmarks) {
+      if (!bookIsbns.has(bookmark.book_isbn)) {
+        await this.promisifyRequest(store.delete(bookmark.id));
+        deletedCount++;
+      }
+    }
+
+    return deletedCount;
   }
 
   // Reading progress operations

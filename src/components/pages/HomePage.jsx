@@ -438,7 +438,7 @@ export const HomePage = () => {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
               <img
-                src="/profile.jpg"
+                src={user?.avatar || "/profile.jpg"}
                 alt="Profile"
                 className="w-full h-full object-cover"
               />

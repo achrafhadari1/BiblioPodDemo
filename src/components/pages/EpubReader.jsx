@@ -78,6 +78,10 @@ function EpubReader() {
   const [isUpdatingReadingMode, setIsUpdatingReadingMode] = useState(false);
   const [isNavigatingToChapter, setIsNavigatingToChapter] = useState(false);
 
+  // Mobile debug logs state
+  const [debugLogs, setDebugLogs] = useState([]);
+  const [showDebugLogs, setShowDebugLogs] = useState(false);
+
   // Touch/swipe state - using refs to avoid race conditions
   const touchStartRef = useRef(null);
   const touchStartYRef = useRef(null);
@@ -99,18 +103,47 @@ function EpubReader() {
   const viewerRef = useRef(null);
   const pageCalculationTimeoutRef = useRef(null);
 
+  // Helper function to add debug logs for mobile
+  const addDebugLog = useCallback((message, data = {}) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = {
+      id: Date.now(),
+      timestamp,
+      message,
+      data: JSON.stringify(data, null, 2),
+    };
+
+    setDebugLogs((prev) => {
+      const newLogs = [logEntry, ...prev].slice(0, 20); // Keep only last 20 logs
+      return newLogs;
+    });
+
+    // Also log to console
+    console.log(`[${timestamp}] ${message}`, data);
+  }, []);
+
   // Helper function to reset swipe state
   const resetSwipeState = useCallback(() => {
     isSwipingRef.current = false;
     touchStartRef.current = null;
     touchStartYRef.current = null;
     touchEndRef.current = null;
-  }, []);
+    addDebugLog("🔄 Swipe state reset");
+  }, [addDebugLog]);
 
   // Detect mobile device on mount and window resize
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(isMobileDevice());
+      const mobile = isMobileDevice();
+      setIsMobile(mobile);
+      setShowDebugLogs(mobile); // Show debug logs on mobile devices
+      if (mobile) {
+        addDebugLog("📱 Mobile device detected", {
+          userAgent: navigator.userAgent,
+          windowWidth: window.innerWidth,
+          windowHeight: window.innerHeight,
+        });
+      }
     };
 
     // Handle orientation change and resize events
@@ -235,28 +268,33 @@ function EpubReader() {
   // Touch/swipe handlers with improved debouncing and state management
   const onTouchStart = useCallback(
     (e) => {
-      console.log("[SWIPE] Touch start triggered", {
+      const debugData = {
         isSwipingRef: isSwipingRef.current,
         touchStartRef: touchStartRef.current,
         targetElement: e.target.tagName,
         readingMode,
-      });
+        hasTargetTouches: !!e.targetTouches,
+        touchCount: e.targetTouches ? e.targetTouches.length : 0,
+      };
+
+      addDebugLog("👆 Touch start triggered", debugData);
 
       // Check for double-tap first
       if (handleDoubleTap(e)) {
+        addDebugLog("👆👆 Double-tap handled, skipping swipe");
         return; // Double-tap was handled, don't process as swipe
       }
 
       // Prevent multiple simultaneous swipes
       if (isSwipingRef.current) {
-        console.log("[SWIPE] Preventing touch start - already swiping");
+        addDebugLog("⚠️ Preventing touch start - already swiping");
         e.preventDefault();
         return;
       }
 
       // Ensure we have valid touch data
       if (!e.targetTouches || e.targetTouches.length === 0) {
-        console.log("[SWIPE] No valid touch data available");
+        addDebugLog("❌ No valid touch data available");
         return;
       }
 
@@ -274,7 +312,7 @@ function EpubReader() {
         startY < 0 ||
         startY > window.innerHeight
       ) {
-        console.log("[SWIPE] Invalid touch coordinates:", { startX, startY });
+        addDebugLog("❌ Invalid touch coordinates", { startX, startY });
         return;
       }
 
@@ -283,7 +321,7 @@ function EpubReader() {
       touchEndRef.current = null;
       isSwipingRef.current = true;
 
-      console.log("[SWIPE] Touch start detected", {
+      addDebugLog("✅ Touch start detected", {
         startX,
         startY,
         readingMode,
@@ -291,12 +329,18 @@ function EpubReader() {
         windowHeight: window.innerHeight,
       });
     },
-    [handleDoubleTap, readingMode]
+    [handleDoubleTap, readingMode, addDebugLog]
   );
 
   const onTouchMove = useCallback(
     (e) => {
-      if (!touchStartRef.current || !isSwipingRef.current) return;
+      if (!touchStartRef.current || !isSwipingRef.current) {
+        addDebugLog("⚠️ Touch move ignored - no start or not swiping", {
+          hasStart: !!touchStartRef.current,
+          isSwiping: isSwipingRef.current,
+        });
+        return;
+      }
 
       const currentX = e.targetTouches[0].clientX;
       const currentY = e.targetTouches[0].clientY;
@@ -319,17 +363,19 @@ function EpubReader() {
         if (isHorizontalGesture) {
           e.preventDefault();
           e.stopPropagation();
+          addDebugLog("🚫 Prevented horizontal gesture in paginated mode");
         }
       } else {
         // In scrolled mode, prevent horizontal swipes but allow vertical scrolling
         if (isHorizontalGesture) {
           e.preventDefault();
           e.stopPropagation();
+          addDebugLog("🚫 Prevented horizontal gesture in scrolled mode");
         }
         // Allow vertical scrolling to continue naturally for scrolled mode
       }
 
-      console.log("[SWIPE] Touch move detected", {
+      addDebugLog("👆➡️ Touch move detected", {
         currentX,
         currentY,
         horizontalDistance,
@@ -339,15 +385,17 @@ function EpubReader() {
         readingMode,
       });
     },
-    [readingMode]
+    [readingMode, addDebugLog]
   );
 
   const onTouchEnd = useCallback(
     (e) => {
-      console.log("[SWIPE] Touch end triggered", {
+      addDebugLog("👆⬆️ Touch end triggered", {
         isSwipingRef: isSwipingRef.current,
         touchStartRef: touchStartRef.current,
         touchEndRef: touchEndRef.current,
+        hasChangedTouches: !!e.changedTouches,
+        changedTouchCount: e.changedTouches ? e.changedTouches.length : 0,
       });
 
       // Always reset state at the end, regardless of what happens
@@ -356,19 +404,25 @@ function EpubReader() {
         touchStartRef.current = null;
         touchStartYRef.current = null;
         touchEndRef.current = null;
-        console.log("[SWIPE] State cleaned up");
+        addDebugLog("🧹 Touch state cleaned up");
       };
 
       // Check debounce time to prevent rapid swipes
       const now = Date.now();
       if (now - lastSwipeTimeRef.current < swipeDebounceTime) {
-        console.log("[SWIPE] Swipe debounced - too soon after last swipe");
+        addDebugLog("⏱️ Swipe debounced - too soon after last swipe", {
+          timeSinceLastSwipe: now - lastSwipeTimeRef.current,
+          debounceTime: swipeDebounceTime,
+        });
         cleanup();
         return;
       }
 
       if (!touchStartRef.current || !isSwipingRef.current) {
-        console.log("[SWIPE] Touch end without valid start");
+        addDebugLog("❌ Touch end without valid start", {
+          hasStart: !!touchStartRef.current,
+          isSwiping: isSwipingRef.current,
+        });
         cleanup();
         return;
       }
@@ -434,7 +488,12 @@ function EpubReader() {
         lastSwipeTimeRef.current = now;
 
         if (isLeftSwipe) {
-          console.log("[SWIPE] Left swipe detected - going to next page");
+          addDebugLog("✅ Left swipe detected - going to next page", {
+            distance: Math.abs(distance),
+            minSwipeDistance,
+            readingMode,
+            hasRendition: !!rendition,
+          });
           setSwipeDirection("left");
           setTimeout(() => setSwipeDirection(null), 300);
 
@@ -443,7 +502,12 @@ function EpubReader() {
           }
           nextBtn();
         } else if (isRightSwipe) {
-          console.log("[SWIPE] Right swipe detected - going to previous page");
+          addDebugLog("✅ Right swipe detected - going to previous page", {
+            distance: Math.abs(distance),
+            minSwipeDistance,
+            readingMode,
+            hasRendition: !!rendition,
+          });
           setSwipeDirection("right");
           setTimeout(() => setSwipeDirection(null), 300);
 
@@ -452,6 +516,15 @@ function EpubReader() {
           }
           backBtn();
         }
+      } else {
+        addDebugLog("❌ Swipe not processed", {
+          isLeftSwipe,
+          isRightSwipe,
+          hasRendition: !!rendition,
+          distance: Math.abs(distance),
+          minSwipeDistance,
+          readingMode,
+        });
       }
 
       // Always cleanup at the end
@@ -464,14 +537,22 @@ function EpubReader() {
       backBtn,
       swipeDebounceTime,
       mobileHoverMode,
+      addDebugLog,
     ]
   );
 
   // Attach touch event listeners - improved approach using epub.js events
   useEffect(() => {
-    if (!book || !isMobile || !rendition) return;
+    if (!book || !isMobile || !rendition) {
+      addDebugLog("⚠️ Skipping touch listener setup", {
+        hasBook: !!book,
+        isMobile,
+        hasRendition: !!rendition,
+      });
+      return;
+    }
 
-    console.log("[SWIPE] Attaching touch event listeners for mobile", {
+    addDebugLog("🔧 Attaching touch event listeners for mobile", {
       currentChapter,
       hasRendition: !!rendition,
       isMobile,
@@ -484,7 +565,7 @@ function EpubReader() {
     const viewer = viewerRef.current || document.getElementById("viewer");
 
     if (!viewer) {
-      console.log("[SWIPE] Viewer element not found, skipping touch setup");
+      addDebugLog("❌ Viewer element not found, skipping touch setup");
       return;
     }
 
@@ -502,13 +583,20 @@ function EpubReader() {
       capture: true,
     });
 
-    console.log("[SWIPE] Added touch listeners to viewer element");
+    addDebugLog("✅ Added touch listeners to viewer element", {
+      viewerId: viewer.id,
+      viewerClass: viewer.className,
+    });
 
     // Enhanced iframe content handling using epub.js events
     const setupIframeListeners = () => {
       try {
         // Use epub.js's contents to access iframe documents
         const contents = rendition.getContents();
+
+        addDebugLog("🖼️ Setting up iframe listeners", {
+          contentCount: contents.length,
+        });
 
         contents.forEach((content, index) => {
           try {
@@ -538,20 +626,29 @@ function EpubReader() {
                 capture: true,
               });
 
-              console.log(
-                `[SWIPE] Added touch listeners to iframe content ${index}`
+              addDebugLog(
+                `✅ Added touch listeners to iframe content ${index}`,
+                {
+                  documentTitle: content.document.title || "No title",
+                  documentURL: content.document.URL || "No URL",
+                }
               );
+            } else {
+              addDebugLog(`❌ No document in content ${index}`);
             }
           } catch (e) {
-            console.log(
-              `[SWIPE] Could not access iframe content ${index}:`,
-              e.message
-            );
+            addDebugLog(`❌ Could not access iframe content ${index}`, {
+              error: e.message,
+            });
           }
         });
 
         // Fallback: also try to add listeners to any iframe elements directly
         const iframes = viewer.querySelectorAll("iframe");
+        addDebugLog("🔄 Fallback iframe setup", {
+          iframeCount: iframes.length,
+        });
+
         iframes.forEach((iframe, index) => {
           try {
             if (iframe.contentDocument) {
@@ -593,19 +690,26 @@ function EpubReader() {
                 capture: true,
               });
 
-              console.log(
-                `[SWIPE] Added fallback touch listeners to iframe ${index}`
+              addDebugLog(
+                `✅ Added fallback touch listeners to iframe ${index}`,
+                {
+                  src: iframe.src || "No src",
+                  id: iframe.id || "No id",
+                }
               );
+            } else {
+              addDebugLog(`❌ No contentDocument in fallback iframe ${index}`);
             }
           } catch (e) {
-            console.log(
-              `[SWIPE] Could not access fallback iframe ${index}:`,
-              e.message
-            );
+            addDebugLog(`❌ Could not access fallback iframe ${index}`, {
+              error: e.message,
+            });
           }
         });
       } catch (e) {
-        console.log("[SWIPE] Error setting up iframe listeners:", e.message);
+        addDebugLog("❌ Error setting up iframe listeners", {
+          error: e.message,
+        });
       }
     };
 
@@ -614,20 +718,22 @@ function EpubReader() {
 
     // Also set up listeners when new content is rendered
     const onRendered = () => {
-      console.log("[SWIPE] Content rendered, setting up iframe listeners");
+      addDebugLog("📄 Content rendered, setting up iframe listeners");
       setTimeout(setupIframeListeners, 100); // Small delay to ensure content is ready
     };
 
     // Listen for epub.js rendered events to catch new content
     rendition.on("rendered", onRendered);
+    addDebugLog("👂 Listening for 'rendered' events");
 
     // Also listen for location changes which might load new content
     const onLocationChanged = () => {
-      console.log("[SWIPE] Location changed, refreshing iframe listeners");
+      addDebugLog("📍 Location changed, refreshing iframe listeners");
       setTimeout(setupIframeListeners, 200);
     };
 
     rendition.on("locationChanged", onLocationChanged);
+    addDebugLog("👂 Listening for 'locationChanged' events");
 
     // Fallback: periodically check for new iframes (for edge cases)
     const intervalCheck = setInterval(() => {
@@ -671,6 +777,7 @@ function EpubReader() {
     onTouchMove,
     onTouchEnd,
     resetSwipeState,
+    addDebugLog,
   ]);
 
   // Cleanup swipe state on unmount
@@ -2914,6 +3021,31 @@ function EpubReader() {
           >
             <BarChart3 className="w-4 h-4 text-black" />
           </Button>
+
+          {/* Debug toggle button - only show on mobile or when debug is already enabled */}
+          {(isMobile || showDebugLogs) && (
+            <Button
+              isIconOnly
+              onClick={() => {
+                setShowDebugLogs(!showDebugLogs);
+                if (!showDebugLogs) {
+                  addDebugLog("🐛 Debug logs manually enabled");
+                }
+              }}
+              variant="light"
+              className="text-foreground hover:bg-default-100 transition-all duration-200"
+              aria-label="Toggle debug logs"
+              title="Toggle touch debug logs"
+            >
+              <span
+                className={`text-sm ${
+                  showDebugLogs ? "text-green-500" : "text-gray-500"
+                }`}
+              >
+                🐛
+              </span>
+            </Button>
+          )}
           <Button
             isIconOnly
             onClick={toggleFullscreen}
@@ -3028,6 +3160,52 @@ function EpubReader() {
               rendition={rendition}
               isUpdatingReadingMode={isUpdatingReadingMode}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Debug Logs Overlay */}
+      {showDebugLogs && (
+        <div className="fixed top-0 left-0 w-full h-full z-50 pointer-events-none">
+          <div className="absolute top-4 left-4 right-4 max-h-96 overflow-y-auto bg-black bg-opacity-90 text-white text-xs font-mono rounded-lg p-3 pointer-events-auto">
+            <div className="flex justify-between items-center mb-2 sticky top-0 bg-black bg-opacity-90 pb-2">
+              <h3 className="text-sm font-bold text-green-400">
+                🐛 Touch Debug Logs
+              </h3>
+              <button
+                onClick={() => {
+                  setShowDebugLogs(false);
+                  setDebugLogs([]);
+                }}
+                className="text-red-400 hover:text-red-300 text-lg"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-1">
+              {debugLogs.length === 0 ? (
+                <div className="text-gray-400">No logs yet... Try swiping!</div>
+              ) : (
+                debugLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="border-b border-gray-700 pb-1 mb-1"
+                  >
+                    <div className="text-yellow-300">
+                      [{log.timestamp}] {log.message}
+                    </div>
+                    {log.data && log.data !== "{}" && (
+                      <div className="text-gray-300 ml-2 text-xs">
+                        <pre className="whitespace-pre-wrap">{log.data}</pre>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-3 pt-2 border-t border-gray-700 text-gray-400 text-xs">
+              Tap the ✕ to close. Logs auto-clear after 20 entries.
+            </div>
           </div>
         </div>
       )}

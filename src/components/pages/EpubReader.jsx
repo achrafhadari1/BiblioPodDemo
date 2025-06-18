@@ -115,14 +115,11 @@ function EpubReader() {
 
     // Handle orientation change and resize events
     const handleOrientationChange = () => {
-      console.log("[ORIENTATION] Orientation/resize change detected");
-      // Only reset touch state if currently swiping to avoid breaking normal swipes
-      if (isSwipingRef.current) {
-        console.log(
-          "[ORIENTATION] Resetting touch state due to active swipe during orientation change"
-        );
-        resetSwipeState();
-      }
+      console.log(
+        "[ORIENTATION] Orientation/resize change detected, resetting touch state"
+      );
+      // Reset touch/swipe state when orientation changes
+      resetSwipeState();
       // Clear any ongoing hover mode
       setMobileHoverMode(false);
       if (hoverTimeoutRef.current) {
@@ -255,30 +252,8 @@ function EpubReader() {
         return;
       }
 
-      // Validate touch coordinates
-      if (!e.targetTouches || !e.targetTouches[0]) {
-        console.log("[SWIPE] Invalid touch event - no targetTouches");
-        return;
-      }
-
       const startX = e.targetTouches[0].clientX;
       const startY = e.targetTouches[0].clientY;
-
-      // Validate coordinates are reasonable
-      if (
-        typeof startX !== "number" ||
-        typeof startY !== "number" ||
-        isNaN(startX) ||
-        isNaN(startY) ||
-        startX < 0 ||
-        startY < 0 ||
-        startX > window.innerWidth ||
-        startY > window.innerHeight
-      ) {
-        console.log("[SWIPE] Invalid touch coordinates:", { startX, startY });
-        return;
-      }
-
       touchStartRef.current = startX;
       touchStartYRef.current = startY;
       touchEndRef.current = null;
@@ -297,20 +272,7 @@ function EpubReader() {
     (e) => {
       if (!touchStartRef.current || !isSwipingRef.current) return;
 
-      // Validate touch coordinates
-      if (!e.targetTouches || !e.targetTouches[0]) {
-        console.log("[SWIPE] Invalid touch move event - no targetTouches");
-        return;
-      }
-
       const currentX = e.targetTouches[0].clientX;
-
-      // Validate coordinates are reasonable
-      if (typeof currentX !== "number" || isNaN(currentX)) {
-        console.log("[SWIPE] Invalid touch move coordinates:", { currentX });
-        return;
-      }
-
       touchEndRef.current = currentX;
 
       // In scrolled mode, allow vertical scrolling but prevent horizontal swipes
@@ -336,7 +298,7 @@ function EpubReader() {
 
       console.log("[SWIPE] Touch move detected at X:", currentX);
     },
-    [readingMode, resetSwipeState]
+    [readingMode]
   );
 
   const onTouchEnd = useCallback(
@@ -1696,15 +1658,12 @@ function EpubReader() {
       const resizeListener = () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-          console.log("[RESIZE] Handling rendition resize");
+          console.log(
+            "[RESIZE] Handling rendition resize, resetting touch state"
+          );
 
-          // Only reset touch state if currently swiping to avoid breaking normal swipes
-          if (isSwipingRef.current) {
-            console.log(
-              "[RESIZE] Resetting touch state due to active swipe during resize"
-            );
-            resetSwipeState();
-          }
+          // Reset touch/swipe state on resize to prevent stale touch data
+          resetSwipeState();
 
           const newWidth = window.innerWidth;
           const newHeight = "90vh";

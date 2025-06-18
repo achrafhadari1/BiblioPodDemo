@@ -99,26 +99,6 @@ function EpubReader() {
   const viewerRef = useRef(null);
   const pageCalculationTimeoutRef = useRef(null);
 
-  // Detect mobile device on mount and window resize
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(isMobileDevice());
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-
-    return () => {
-      window.removeEventListener("resize", checkMobile);
-    };
-  }, []);
-
-  // Force re-render when reading mode changes to update UI elements
-  useEffect(() => {
-    // Force update to ensure navigation buttons and divider visibility updates
-    setForceUpdate({});
-  }, [readingMode]);
-
   // Helper function to reset swipe state
   const resetSwipeState = useCallback(() => {
     isSwipingRef.current = false;
@@ -126,6 +106,62 @@ function EpubReader() {
     touchStartYRef.current = null;
     touchEndRef.current = null;
   }, []);
+
+  // Detect mobile device on mount and window resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(isMobileDevice());
+    };
+
+    // Handle orientation change and resize events
+    const handleOrientationChange = () => {
+      console.log(
+        "[ORIENTATION] Orientation/resize change detected, resetting touch state"
+      );
+      // Reset touch/swipe state when orientation changes
+      resetSwipeState();
+      // Clear any ongoing hover mode
+      setMobileHoverMode(false);
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      // Update mobile detection
+      checkMobile();
+    };
+
+    // Handle specific orientation change events (mobile devices)
+    const handleOrientationChangeEvent = () => {
+      console.log("[ORIENTATION] Specific orientationchange event detected");
+      // Add a small delay to allow the viewport to settle after orientation change
+      setTimeout(() => {
+        handleOrientationChange();
+        // Brief visual feedback for orientation change (optional)
+        if (isMobile && navigator.vibrate) {
+          navigator.vibrate(30); // Short vibration to indicate orientation change handled
+        }
+      }, 100);
+    };
+
+    checkMobile();
+
+    // Listen for both resize and orientation change events
+    window.addEventListener("resize", handleOrientationChange);
+    window.addEventListener("orientationchange", handleOrientationChangeEvent);
+
+    return () => {
+      window.removeEventListener("resize", handleOrientationChange);
+      window.removeEventListener(
+        "orientationchange",
+        handleOrientationChangeEvent
+      );
+    };
+  }, [resetSwipeState]);
+
+  // Force re-render when reading mode changes to update UI elements
+  useEffect(() => {
+    // Force update to ensure navigation buttons and divider visibility updates
+    setForceUpdate({});
+  }, [readingMode]);
 
   // Navigation functions (defined first to avoid dependency issues)
   const nextBtn = useCallback(() => {
@@ -216,8 +252,30 @@ function EpubReader() {
         return;
       }
 
+      // Validate touch coordinates
+      if (!e.targetTouches || !e.targetTouches[0]) {
+        console.log("[SWIPE] Invalid touch event - no targetTouches");
+        return;
+      }
+
       const startX = e.targetTouches[0].clientX;
       const startY = e.targetTouches[0].clientY;
+
+      // Validate coordinates are reasonable
+      if (
+        typeof startX !== "number" ||
+        typeof startY !== "number" ||
+        isNaN(startX) ||
+        isNaN(startY) ||
+        startX < 0 ||
+        startY < 0 ||
+        startX > window.innerWidth ||
+        startY > window.innerHeight
+      ) {
+        console.log("[SWIPE] Invalid touch coordinates:", { startX, startY });
+        return;
+      }
+
       touchStartRef.current = startX;
       touchStartYRef.current = startY;
       touchEndRef.current = null;
@@ -236,7 +294,27 @@ function EpubReader() {
     (e) => {
       if (!touchStartRef.current || !isSwipingRef.current) return;
 
+      // Validate touch coordinates
+      if (!e.targetTouches || !e.targetTouches[0]) {
+        console.log("[SWIPE] Invalid touch move event - no targetTouches");
+        resetSwipeState();
+        return;
+      }
+
       const currentX = e.targetTouches[0].clientX;
+
+      // Validate coordinates are reasonable
+      if (
+        typeof currentX !== "number" ||
+        isNaN(currentX) ||
+        currentX < 0 ||
+        currentX > window.innerWidth
+      ) {
+        console.log("[SWIPE] Invalid touch move coordinates:", { currentX });
+        resetSwipeState();
+        return;
+      }
+
       touchEndRef.current = currentX;
 
       // In scrolled mode, allow vertical scrolling but prevent horizontal swipes
@@ -262,7 +340,7 @@ function EpubReader() {
 
       console.log("[SWIPE] Touch move detected at X:", currentX);
     },
-    [readingMode]
+    [readingMode, resetSwipeState]
   );
 
   const onTouchEnd = useCallback(
@@ -300,6 +378,19 @@ function EpubReader() {
       let endX = touchEndRef.current;
       if (!endX && e.changedTouches && e.changedTouches[0]) {
         endX = e.changedTouches[0].clientX;
+      }
+
+      // Validate end coordinates
+      if (
+        endX &&
+        (typeof endX !== "number" ||
+          isNaN(endX) ||
+          endX < 0 ||
+          endX > window.innerWidth)
+      ) {
+        console.log("[SWIPE] Invalid touch end coordinates:", { endX });
+        cleanup();
+        return;
       }
 
       // If mobile hover mode is active and this is a single tap (not a swipe), disable hover mode
@@ -384,7 +475,11 @@ function EpubReader() {
     console.log("[SWIPE] Attaching touch event listeners for mobile", {
       currentChapter,
       hasRendition: !!rendition,
+      isMobile,
     });
+
+    // Reset touch state when re-attaching listeners (e.g., after orientation change)
+    resetSwipeState();
 
     // Use a single target element to avoid duplicate events
     // Priority: viewer > main container > document
@@ -1605,6 +1700,13 @@ function EpubReader() {
       const resizeListener = () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
+          console.log(
+            "[RESIZE] Handling rendition resize, resetting touch state"
+          );
+
+          // Reset touch/swipe state on resize to prevent stale touch data
+          resetSwipeState();
+
           const newWidth = window.innerWidth;
           const newHeight = "90vh";
 
@@ -2409,8 +2511,8 @@ function EpubReader() {
             "font-family": `${fontWithFallback} !important`,
             "font-size": `${fontSize}em !important`,
             "line-height": "1.6 !important",
-            color: isDarkTheme ? "#e0e0e0 !important" : "#333 !important",
-            "background-color": isDarkTheme ? "#000000" : "#ffffff !important",
+            color: isDarkTheme ? "#e0e0e0" : "#333",
+            "background-color": isDarkTheme ? "#000000" : "#ffffff",
           },
         });
 

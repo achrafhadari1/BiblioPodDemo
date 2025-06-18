@@ -115,11 +115,14 @@ function EpubReader() {
 
     // Handle orientation change and resize events
     const handleOrientationChange = () => {
-      console.log(
-        "[ORIENTATION] Orientation/resize change detected, resetting touch state"
-      );
-      // Reset touch/swipe state when orientation changes
-      resetSwipeState();
+      console.log("[ORIENTATION] Orientation/resize change detected");
+      // Only reset touch state if currently swiping to avoid breaking normal swipes
+      if (isSwipingRef.current) {
+        console.log(
+          "[ORIENTATION] Resetting touch state due to active swipe during orientation change"
+        );
+        resetSwipeState();
+      }
       // Clear any ongoing hover mode
       setMobileHoverMode(false);
       if (hoverTimeoutRef.current) {
@@ -297,21 +300,14 @@ function EpubReader() {
       // Validate touch coordinates
       if (!e.targetTouches || !e.targetTouches[0]) {
         console.log("[SWIPE] Invalid touch move event - no targetTouches");
-        resetSwipeState();
         return;
       }
 
       const currentX = e.targetTouches[0].clientX;
 
       // Validate coordinates are reasonable
-      if (
-        typeof currentX !== "number" ||
-        isNaN(currentX) ||
-        currentX < 0 ||
-        currentX > window.innerWidth
-      ) {
+      if (typeof currentX !== "number" || isNaN(currentX)) {
         console.log("[SWIPE] Invalid touch move coordinates:", { currentX });
-        resetSwipeState();
         return;
       }
 
@@ -1700,12 +1696,15 @@ function EpubReader() {
       const resizeListener = () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-          console.log(
-            "[RESIZE] Handling rendition resize, resetting touch state"
-          );
+          console.log("[RESIZE] Handling rendition resize");
 
-          // Reset touch/swipe state on resize to prevent stale touch data
-          resetSwipeState();
+          // Only reset touch state if currently swiping to avoid breaking normal swipes
+          if (isSwipingRef.current) {
+            console.log(
+              "[RESIZE] Resetting touch state due to active swipe during resize"
+            );
+            resetSwipeState();
+          }
 
           const newWidth = window.innerWidth;
           const newHeight = "90vh";

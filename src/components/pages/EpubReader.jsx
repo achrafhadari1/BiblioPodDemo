@@ -90,9 +90,9 @@ function EpubReader() {
   const tapCountRef = useRef(0);
   const hoverTimeoutRef = useRef(null);
 
-  // Minimum swipe distance (in px) and debounce time
-  const minSwipeDistance = 50;
-  const swipeDebounceTime = 150; // ms - reduced for better responsiveness
+  // Minimum swipe distance (in px) and debounce time - optimized for mobile
+  const minSwipeDistance = 30; // Reduced from 50 to 30 for better mobile responsiveness
+  const swipeDebounceTime = 100; // ms - reduced for better responsiveness
 
   // Refs
   const titleBarTimerRef = useRef(null);
@@ -238,6 +238,8 @@ function EpubReader() {
       console.log("[SWIPE] Touch start triggered", {
         isSwipingRef: isSwipingRef.current,
         touchStartRef: touchStartRef.current,
+        targetElement: e.target.tagName,
+        readingMode,
       });
 
       // Check for double-tap first
@@ -252,20 +254,44 @@ function EpubReader() {
         return;
       }
 
+      // Ensure we have valid touch data
+      if (!e.targetTouches || e.targetTouches.length === 0) {
+        console.log("[SWIPE] No valid touch data available");
+        return;
+      }
+
       const startX = e.targetTouches[0].clientX;
       const startY = e.targetTouches[0].clientY;
+
+      // Validate coordinates
+      if (
+        typeof startX !== "number" ||
+        typeof startY !== "number" ||
+        isNaN(startX) ||
+        isNaN(startY) ||
+        startX < 0 ||
+        startX > window.innerWidth ||
+        startY < 0 ||
+        startY > window.innerHeight
+      ) {
+        console.log("[SWIPE] Invalid touch coordinates:", { startX, startY });
+        return;
+      }
+
       touchStartRef.current = startX;
       touchStartYRef.current = startY;
       touchEndRef.current = null;
       isSwipingRef.current = true;
 
-      console.log(
-        "[SWIPE] Touch start detected at X:",
+      console.log("[SWIPE] Touch start detected", {
         startX,
-        "State set to swiping"
-      );
+        startY,
+        readingMode,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+      });
     },
-    [handleDoubleTap]
+    [handleDoubleTap, readingMode]
   );
 
   const onTouchMove = useCallback(
@@ -273,30 +299,45 @@ function EpubReader() {
       if (!touchStartRef.current || !isSwipingRef.current) return;
 
       const currentX = e.targetTouches[0].clientX;
+      const currentY = e.targetTouches[0].clientY;
       touchEndRef.current = currentX;
 
-      // In scrolled mode, allow vertical scrolling but prevent horizontal swipes
-      // In paginated mode, prevent all scrolling for horizontal swipes
-      const distance = Math.abs(currentX - touchStartRef.current);
-      if (distance > 10) {
-        if (readingMode === "paginated") {
-          // In paginated mode, prevent all scrolling for swipes
-          e.preventDefault();
-        } else {
-          // In scrolled mode, only prevent horizontal movement
-          // Allow vertical scrolling to continue naturally
-          const currentY = e.targetTouches[0].clientY;
-          const startY = touchStartYRef.current;
-          const verticalDistance = startY ? Math.abs(currentY - startY) : 0;
+      // Calculate distances
+      const horizontalDistance = Math.abs(currentX - touchStartRef.current);
+      const verticalDistance = touchStartYRef.current
+        ? Math.abs(currentY - touchStartYRef.current)
+        : 0;
 
-          // Only prevent if it's clearly a horizontal swipe (more horizontal than vertical)
-          if (distance > verticalDistance) {
-            e.preventDefault();
-          }
+      // Determine if this is a horizontal or vertical gesture
+      const isHorizontalGesture =
+        horizontalDistance > verticalDistance && horizontalDistance > 10;
+      const isVerticalGesture =
+        verticalDistance > horizontalDistance && verticalDistance > 10;
+
+      if (readingMode === "paginated") {
+        // In paginated mode, prevent scrolling for horizontal swipes but allow vertical scrolling for UI elements
+        if (isHorizontalGesture) {
+          e.preventDefault();
+          e.stopPropagation();
         }
+      } else {
+        // In scrolled mode, prevent horizontal swipes but allow vertical scrolling
+        if (isHorizontalGesture) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        // Allow vertical scrolling to continue naturally for scrolled mode
       }
 
-      console.log("[SWIPE] Touch move detected at X:", currentX);
+      console.log("[SWIPE] Touch move detected", {
+        currentX,
+        currentY,
+        horizontalDistance,
+        verticalDistance,
+        isHorizontalGesture,
+        isVerticalGesture,
+        readingMode,
+      });
     },
     [readingMode]
   );
@@ -426,7 +467,7 @@ function EpubReader() {
     ]
   );
 
-  // Attach touch event listeners - simplified to avoid duplicate events
+  // Attach touch event listeners - improved approach using epub.js events
   useEffect(() => {
     if (!book || !isMobile || !rendition) return;
 
@@ -439,119 +480,187 @@ function EpubReader() {
     // Reset touch state when re-attaching listeners (e.g., after orientation change)
     resetSwipeState();
 
-    // Use a single target element to avoid duplicate events
-    // Priority: viewer > main container > document
-    let targetElement = null;
+    // Use the viewer element as the primary target
     const viewer = viewerRef.current || document.getElementById("viewer");
-    const mainContainer = document.querySelector(".main-book-reader-container");
 
-    if (viewer) {
-      targetElement = viewer;
-      console.log("[SWIPE] Using viewer as target element");
-    } else if (mainContainer) {
-      targetElement = mainContainer;
-      console.log("[SWIPE] Using main container as target element");
-    } else {
-      targetElement = document;
-      console.log("[SWIPE] Using document as target element");
+    if (!viewer) {
+      console.log("[SWIPE] Viewer element not found, skipping touch setup");
+      return;
     }
 
-    // Add event listeners with capture to ensure we get the events first
-    targetElement.addEventListener("touchstart", onTouchStart, {
+    // Add event listeners to the viewer container with capture
+    viewer.addEventListener("touchstart", onTouchStart, {
       passive: false,
       capture: true,
     });
-    targetElement.addEventListener("touchmove", onTouchMove, {
+    viewer.addEventListener("touchmove", onTouchMove, {
       passive: false,
       capture: true,
     });
-    targetElement.addEventListener("touchend", onTouchEnd, {
+    viewer.addEventListener("touchend", onTouchEnd, {
       passive: false,
       capture: true,
     });
 
-    // Try to add to iframe content as well (for epub.js)
-    const checkForIframe = () => {
-      const iframe = document.querySelector("#viewer iframe");
-      if (iframe && iframe.contentDocument) {
-        try {
-          const iframeDoc = iframe.contentDocument;
-          iframeDoc.addEventListener("touchstart", onTouchStart, {
-            passive: false,
-          });
-          iframeDoc.addEventListener("touchmove", onTouchMove, {
-            passive: false,
-          });
-          iframeDoc.addEventListener("touchend", onTouchEnd, {
-            passive: false,
-          });
-          console.log("[SWIPE] Added touch listeners to iframe content");
-        } catch (e) {
-          console.log(
-            "[SWIPE] Could not access iframe content (CORS):",
-            e.message
-          );
-        }
+    console.log("[SWIPE] Added touch listeners to viewer element");
+
+    // Enhanced iframe content handling using epub.js events
+    const setupIframeListeners = () => {
+      try {
+        // Use epub.js's contents to access iframe documents
+        const contents = rendition.getContents();
+
+        contents.forEach((content, index) => {
+          try {
+            if (content.document) {
+              // Remove any existing listeners first to avoid duplicates
+              content.document.removeEventListener("touchstart", onTouchStart, {
+                capture: true,
+              });
+              content.document.removeEventListener("touchmove", onTouchMove, {
+                capture: true,
+              });
+              content.document.removeEventListener("touchend", onTouchEnd, {
+                capture: true,
+              });
+
+              // Add touch listeners to each iframe's document
+              content.document.addEventListener("touchstart", onTouchStart, {
+                passive: false,
+                capture: true,
+              });
+              content.document.addEventListener("touchmove", onTouchMove, {
+                passive: false,
+                capture: true,
+              });
+              content.document.addEventListener("touchend", onTouchEnd, {
+                passive: false,
+                capture: true,
+              });
+
+              console.log(
+                `[SWIPE] Added touch listeners to iframe content ${index}`
+              );
+            }
+          } catch (e) {
+            console.log(
+              `[SWIPE] Could not access iframe content ${index}:`,
+              e.message
+            );
+          }
+        });
+
+        // Fallback: also try to add listeners to any iframe elements directly
+        const iframes = viewer.querySelectorAll("iframe");
+        iframes.forEach((iframe, index) => {
+          try {
+            if (iframe.contentDocument) {
+              // Remove any existing listeners first
+              iframe.contentDocument.removeEventListener(
+                "touchstart",
+                onTouchStart,
+                { capture: true }
+              );
+              iframe.contentDocument.removeEventListener(
+                "touchmove",
+                onTouchMove,
+                { capture: true }
+              );
+              iframe.contentDocument.removeEventListener(
+                "touchend",
+                onTouchEnd,
+                { capture: true }
+              );
+
+              iframe.contentDocument.addEventListener(
+                "touchstart",
+                onTouchStart,
+                {
+                  passive: false,
+                  capture: true,
+                }
+              );
+              iframe.contentDocument.addEventListener(
+                "touchmove",
+                onTouchMove,
+                {
+                  passive: false,
+                  capture: true,
+                }
+              );
+              iframe.contentDocument.addEventListener("touchend", onTouchEnd, {
+                passive: false,
+                capture: true,
+              });
+
+              console.log(
+                `[SWIPE] Added fallback touch listeners to iframe ${index}`
+              );
+            }
+          } catch (e) {
+            console.log(
+              `[SWIPE] Could not access fallback iframe ${index}:`,
+              e.message
+            );
+          }
+        });
+      } catch (e) {
+        console.log("[SWIPE] Error setting up iframe listeners:", e.message);
       }
     };
 
-    // Check for iframe after a delay to allow epub.js to load
-    const iframeTimer = setTimeout(checkForIframe, 1500);
+    // Set up listeners immediately if content is already loaded
+    setupIframeListeners();
 
-    // Also check again after a longer delay in case of chapter navigation
-    const iframeTimer2 = setTimeout(checkForIframe, 3000);
+    // Also set up listeners when new content is rendered
+    const onRendered = () => {
+      console.log("[SWIPE] Content rendered, setting up iframe listeners");
+      setTimeout(setupIframeListeners, 100); // Small delay to ensure content is ready
+    };
 
-    // Set up a mutation observer to detect when iframe content changes
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === "childList") {
-          // Check if an iframe was added or modified
-          const addedNodes = Array.from(mutation.addedNodes);
-          const hasIframe = addedNodes.some(
-            (node) =>
-              node.nodeType === Node.ELEMENT_NODE &&
-              (node.tagName === "IFRAME" || node.querySelector("iframe"))
-          );
+    // Listen for epub.js rendered events to catch new content
+    rendition.on("rendered", onRendered);
 
-          if (hasIframe) {
-            console.log("[SWIPE] Iframe detected via mutation observer");
-            setTimeout(checkForIframe, 500); // Small delay to ensure iframe is ready
-          }
-        }
-      });
-    });
+    // Also listen for location changes which might load new content
+    const onLocationChanged = () => {
+      console.log("[SWIPE] Location changed, refreshing iframe listeners");
+      setTimeout(setupIframeListeners, 200);
+    };
 
-    // Observe the viewer element for changes
-    if (viewer) {
-      observer.observe(viewer, {
-        childList: true,
-        subtree: true,
-      });
-    }
+    rendition.on("locationChanged", onLocationChanged);
+
+    // Fallback: periodically check for new iframes (for edge cases)
+    const intervalCheck = setInterval(() => {
+      setupIframeListeners();
+    }, 2000);
 
     return () => {
       console.log("[SWIPE] Removing touch event listeners");
-      clearTimeout(iframeTimer);
-      clearTimeout(iframeTimer2);
-      observer.disconnect();
 
-      if (targetElement) {
-        targetElement.removeEventListener("touchstart", onTouchStart, {
+      // Remove listeners from viewer
+      if (viewer) {
+        viewer.removeEventListener("touchstart", onTouchStart, {
           capture: true,
         });
-        targetElement.removeEventListener("touchmove", onTouchMove, {
+        viewer.removeEventListener("touchmove", onTouchMove, {
           capture: true,
         });
-        targetElement.removeEventListener("touchend", onTouchEnd, {
+        viewer.removeEventListener("touchend", onTouchEnd, {
           capture: true,
         });
       }
 
+      // Remove epub.js event listeners
+      if (rendition) {
+        rendition.off("rendered", onRendered);
+        rendition.off("locationChanged", onLocationChanged);
+      }
+
+      // Clear interval
+      clearInterval(intervalCheck);
+
       // Reset swipe state on cleanup
-      isSwipingRef.current = false;
-      touchStartRef.current = null;
-      touchStartYRef.current = null;
-      touchEndRef.current = null;
+      resetSwipeState();
     };
   }, [
     book,
@@ -561,6 +670,7 @@ function EpubReader() {
     onTouchStart,
     onTouchMove,
     onTouchEnd,
+    resetSwipeState,
   ]);
 
   // Cleanup swipe state on unmount
@@ -1482,6 +1592,66 @@ function EpubReader() {
       console.log("Creating rendition with options:", renditionOptions);
       const newRendition = loadedBook.renderTo(viewerElement, renditionOptions);
       console.log("[DEBUG] Rendition created successfully");
+
+      // Disable epub.js default touch handling to prevent conflicts with our custom swipe
+      if (isMobile) {
+        console.log(
+          "[SWIPE] Disabling epub.js default touch handling for mobile"
+        );
+        try {
+          // Disable epub.js's built-in touch navigation
+          if (newRendition.manager && newRendition.manager.settings) {
+            newRendition.manager.settings.snap = false;
+          }
+
+          // Override epub.js touch handlers when content is rendered
+          newRendition.on("rendered", () => {
+            const contents = newRendition.getContents();
+            contents.forEach((content, index) => {
+              try {
+                if (content.document) {
+                  // Disable epub.js touch events by removing their listeners
+                  const iframeDoc = content.document;
+
+                  // Add CSS to prevent text selection during swipes
+                  const style = iframeDoc.createElement("style");
+                  style.textContent = `
+                    * {
+                      -webkit-touch-callout: none;
+                      -webkit-user-select: none;
+                      -khtml-user-select: none;
+                      -moz-user-select: none;
+                      -ms-user-select: none;
+                      user-select: none;
+                      -webkit-tap-highlight-color: transparent;
+                    }
+                    body {
+                      touch-action: pan-y; /* Allow vertical scrolling but prevent horizontal */
+                    }
+                  `;
+                  if (iframeDoc.head) {
+                    iframeDoc.head.appendChild(style);
+                  }
+
+                  console.log(
+                    `[SWIPE] Disabled epub.js touch handling for content ${index}`
+                  );
+                }
+              } catch (e) {
+                console.log(
+                  `[SWIPE] Could not disable touch handling for content ${index}:`,
+                  e.message
+                );
+              }
+            });
+          });
+        } catch (e) {
+          console.log(
+            "[SWIPE] Error disabling epub.js touch handling:",
+            e.message
+          );
+        }
+      }
 
       // Apply global font styles before displaying content
       // First inject font definitions
@@ -2438,6 +2608,66 @@ function EpubReader() {
 
         console.log("Creating new rendition with options:", renditionOptions);
         const newRendition = book.renderTo(viewerElement, renditionOptions);
+
+        // Disable epub.js default touch handling to prevent conflicts with our custom swipe
+        if (isMobile) {
+          console.log(
+            "[SWIPE] Disabling epub.js default touch handling for mobile (reading mode update)"
+          );
+          try {
+            // Disable epub.js's built-in touch navigation
+            if (newRendition.manager && newRendition.manager.settings) {
+              newRendition.manager.settings.snap = false;
+            }
+
+            // Override epub.js touch handlers when content is rendered
+            newRendition.on("rendered", () => {
+              const contents = newRendition.getContents();
+              contents.forEach((content, index) => {
+                try {
+                  if (content.document) {
+                    // Disable epub.js touch events by removing their listeners
+                    const iframeDoc = content.document;
+
+                    // Add CSS to prevent text selection during swipes
+                    const style = iframeDoc.createElement("style");
+                    style.textContent = `
+                      * {
+                        -webkit-touch-callout: none;
+                        -webkit-user-select: none;
+                        -khtml-user-select: none;
+                        -moz-user-select: none;
+                        -ms-user-select: none;
+                        user-select: none;
+                        -webkit-tap-highlight-color: transparent;
+                      }
+                      body {
+                        touch-action: pan-y; /* Allow vertical scrolling but prevent horizontal */
+                      }
+                    `;
+                    if (iframeDoc.head) {
+                      iframeDoc.head.appendChild(style);
+                    }
+
+                    console.log(
+                      `[SWIPE] Disabled epub.js touch handling for content ${index} (reading mode update)`
+                    );
+                  }
+                } catch (e) {
+                  console.log(
+                    `[SWIPE] Could not disable touch handling for content ${index} (reading mode update):`,
+                    e.message
+                  );
+                }
+              });
+            });
+          } catch (e) {
+            console.log(
+              "[SWIPE] Error disabling epub.js touch handling (reading mode update):",
+              e.message
+            );
+          }
+        }
 
         // Apply font styles
         injectFontDefinitions(newRendition);

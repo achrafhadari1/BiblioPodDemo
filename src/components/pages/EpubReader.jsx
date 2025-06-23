@@ -2369,8 +2369,7 @@ function EpubReader() {
 
         // Set flow mode based on reading preference
         if (newMode === "scrolled") {
-          renditionOptions.flow = "scrolled";
-          renditionOptions.manager = "continuous";
+          renditionOptions.method = "continuous";
         } else {
           renditionOptions.flow = "paginated";
           renditionOptions.manager = "default";

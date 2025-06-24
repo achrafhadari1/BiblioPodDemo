@@ -1307,6 +1307,156 @@ class CustomScrollManager {
     }
   }
 
+  /**
+   * Resolve CFI to exact position within a section and scroll to it
+   */
+  scrollToCFIPosition(cfi, section) {
+    if (!section.element || !cfi) return false;
+
+    try {
+      console.log(
+        `[CustomScrollManager] Attempting to scroll to CFI position: ${cfi} in section ${section.href}`
+      );
+
+      // Extract the path within the section from CFI
+      // Our CFI format: /6/28[id13]!/4 (where 4 = 4% progress within section)
+      // Standard CFI format: epubcfi(/6/28!/4[uU2Ci5JrsMB9SCXArRaivn6]/2/2[chapter006]/2[CCNA3-8ac6e65c3820459188e26d146b38ce2a]/1:0)
+
+      let pathMatch = cfi.match(/!\/(.+)$/);
+      if (!pathMatch) {
+        console.log(
+          `[CustomScrollManager] No path found in CFI, scrolling to section start`
+        );
+        return false;
+      }
+
+      const path = pathMatch[1];
+      console.log(`[CustomScrollManager] Extracted path from CFI: ${path}`);
+
+      // Check if this is a simple percentage-based CFI (our format)
+      const percentageMatch = path.match(/^(\d+)$/);
+      if (percentageMatch) {
+        const percentage = parseInt(percentageMatch[1], 10);
+        console.log(
+          `[CustomScrollManager] Detected percentage-based CFI: ${percentage}%`
+        );
+
+        // Calculate scroll position within the section based on percentage
+        const sectionRect = section.element.getBoundingClientRect();
+        const sectionTop = sectionRect.top + window.pageYOffset;
+        const sectionHeight = section.height || sectionRect.height;
+        const targetPosition = sectionTop + (sectionHeight * percentage) / 100;
+
+        console.log(
+          `[CustomScrollManager] Scrolling to ${percentage}% within section:`,
+          {
+            sectionTop,
+            sectionHeight,
+            targetPosition,
+          }
+        );
+
+        this.isScrolling = true;
+        window.scrollTo({
+          top: targetPosition,
+          behavior: "auto",
+        });
+
+        setTimeout(() => {
+          this.isScrolling = false;
+        }, 1000);
+
+        return true;
+      }
+
+      // Handle complex CFI paths (standard format)
+      // Look for elements with IDs mentioned in the CFI
+      const idMatches = path.match(/\[([^\]]+)\]/g);
+      if (idMatches) {
+        for (const idMatch of idMatches) {
+          const id = idMatch.slice(1, -1); // Remove brackets
+          console.log(
+            `[CustomScrollManager] Looking for element with ID: ${id}`
+          );
+
+          const elementById = section.element.querySelector(
+            `#${CSS.escape(id)}`
+          );
+          if (elementById) {
+            console.log(`[CustomScrollManager] Found element by ID: ${id}`);
+            this.isScrolling = true;
+            elementById.scrollIntoView({ behavior: "auto", block: "start" });
+
+            setTimeout(() => {
+              this.isScrolling = false;
+            }, 1000);
+
+            return true;
+          }
+        }
+      }
+
+      // Fallback: try to parse numeric path (e.g., "2/2/2/1:0")
+      const numericPath = path.replace(/\[[^\]]*\]/g, ""); // Remove ID brackets
+      const pathParts = numericPath
+        .split("/")
+        .filter((part) => part && !part.includes(":"));
+
+      if (pathParts.length > 0) {
+        console.log(
+          `[CustomScrollManager] Trying numeric path navigation: ${pathParts.join(
+            "/"
+          )}`
+        );
+
+        let currentElement = section.element;
+        for (const part of pathParts) {
+          const index = parseInt(part, 10);
+          if (isNaN(index) || index < 1) continue;
+
+          // Navigate to child element (CFI uses 1-based indexing)
+          const children = Array.from(currentElement.children);
+          if (children.length >= index) {
+            currentElement = children[index - 1];
+            console.log(
+              `[CustomScrollManager] Navigated to child ${index - 1}`
+            );
+          } else {
+            console.log(
+              `[CustomScrollManager] Child ${index} not found, stopping navigation`
+            );
+            break;
+          }
+        }
+
+        if (currentElement !== section.element) {
+          console.log(
+            `[CustomScrollManager] Scrolling to element found via path navigation`
+          );
+          this.isScrolling = true;
+          currentElement.scrollIntoView({ behavior: "auto", block: "start" });
+
+          setTimeout(() => {
+            this.isScrolling = false;
+          }, 1000);
+
+          return true;
+        }
+      }
+
+      console.log(
+        `[CustomScrollManager] Could not resolve CFI to specific element, using section start`
+      );
+      return false;
+    } catch (error) {
+      console.error(
+        `[CustomScrollManager] Error resolving CFI position:`,
+        error
+      );
+      return false;
+    }
+  }
+
   next() {
     // Scroll down by viewport height
     const scrollAmount = window.innerHeight * 0.8;
@@ -1790,6 +1940,27 @@ class CustomScrollManager {
               sectionIndex
             );
             await this.navigateToSection(sectionIndex, true);
+
+            // After navigating to section, try to scroll to exact CFI position
+            setTimeout(() => {
+              const section = this.sections[sectionIndex];
+              if (section && section.loaded && section.element) {
+                console.log(
+                  "[CustomScrollManager] Attempting to scroll to exact CFI position within section"
+                );
+                const scrolledToCFI = this.scrollToCFIPosition(cfi, section);
+                if (scrolledToCFI) {
+                  console.log(
+                    "[CustomScrollManager] Successfully scrolled to CFI position"
+                  );
+                } else {
+                  console.log(
+                    "[CustomScrollManager] Could not resolve CFI to exact position, staying at section start"
+                  );
+                }
+              }
+            }, 1000); // Wait for section to be fully loaded and rendered
+
             return; // Exit early if successful
           } else {
             console.warn(
@@ -1810,6 +1981,34 @@ class CustomScrollManager {
                   section.index
                 );
                 await this.navigateToSection(section.index, true);
+
+                // After navigating to section, try to scroll to exact CFI position
+                setTimeout(() => {
+                  const targetSection = this.sections[section.index];
+                  if (
+                    targetSection &&
+                    targetSection.loaded &&
+                    targetSection.element
+                  ) {
+                    console.log(
+                      "[CustomScrollManager] Attempting to scroll to exact CFI position within fallback section"
+                    );
+                    const scrolledToCFI = this.scrollToCFIPosition(
+                      cfi,
+                      targetSection
+                    );
+                    if (scrolledToCFI) {
+                      console.log(
+                        "[CustomScrollManager] Successfully scrolled to CFI position (fallback)"
+                      );
+                    } else {
+                      console.log(
+                        "[CustomScrollManager] Could not resolve CFI to exact position (fallback), staying at section start"
+                      );
+                    }
+                  }
+                }, 1000); // Wait for section to be fully loaded and rendered
+
                 return; // Exit early if successful
               }
             } catch (spineError) {

@@ -118,6 +118,7 @@ function EpubReader() {
   const lastAppliedFontSettingsRef = useRef({
     fontSize: null,
     fontFamily: null,
+    rendition: null,
   });
 
   // Custom scroll manager hook - only used when readingMode is "scrolled"
@@ -1277,21 +1278,36 @@ function EpubReader() {
       }
 
       // Check if settings have actually changed to prevent duplicate applications
+      // BUT always apply if rendition has changed (reading mode switch creates new rendition)
       const lastApplied = lastAppliedFontSettingsRef.current;
-      if (
+      const settingsUnchanged =
         lastApplied.fontSize === fontSize &&
-        lastApplied.fontFamily === fontFamily
-      ) {
-        console.log("Skipping font application - settings haven't changed", {
-          fontSize,
-          fontFamily,
-        });
+        lastApplied.fontFamily === fontFamily;
+      const renditionChanged = lastApplied.rendition !== rendition;
+
+      if (settingsUnchanged && !renditionChanged) {
+        console.log(
+          "Skipping font application - settings haven't changed and same rendition",
+          { fontSize, fontFamily }
+        );
         return;
       }
 
+      if (renditionChanged) {
+        console.log(
+          "Font application needed - rendition changed (reading mode switch)",
+          {
+            fontSize,
+            fontFamily,
+            oldRendition: !!lastApplied.rendition,
+            newRendition: !!rendition,
+          }
+        );
+      }
+
       console.log("Applying font settings via effect");
-      // Update last applied settings
-      lastAppliedFontSettingsRef.current = { fontSize, fontFamily };
+      // Update last applied settings including rendition reference
+      lastAppliedFontSettingsRef.current = { fontSize, fontFamily, rendition };
 
       // For paginated mode, add a small delay to ensure rendition is fully ready
       if (readingMode === "paginated") {

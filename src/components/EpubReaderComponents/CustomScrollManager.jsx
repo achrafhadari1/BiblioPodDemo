@@ -229,33 +229,70 @@ class CustomScrollManager {
               this.savedProgress.cfi
             );
 
-            // Extract the section index from the CFI
-            // CFI format is typically like: epubcfi(/6/76!/4/2[div1a]/2[c05]/1:0)
             const cfi = this.savedProgress.cfi;
-            const match = cfi.match(/epubcfi\(\/6\/(\d+)/);
 
+            // Extract spine position from CFI
+            // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0)
+            let match = cfi.match(/epubcfi\(\/6\/(\d+)!/);
             if (match && match[1]) {
               const spinePos = parseInt(match[1], 10);
               console.log(
                 "[CustomScrollManager] Extracted spine position from CFI:",
                 spinePos
               );
-
-              // Adjust for 0-based indexing
-              startSectionIndex = spinePos - 1;
-              hasSavedProgress = true;
-            } else {
-              // Try to use the CFI directly with the book's API
               console.log(
-                "[CustomScrollManager] Using book API to resolve CFI"
+                "[CustomScrollManager] Total sections:",
+                this.sections.length
               );
-              const section = this.book.spine.get(cfi);
-              if (section) {
-                startSectionIndex = section.index;
-                hasSavedProgress = true;
+
+              // For this book format, spine positions start at 2 and increment by 2
+              // So spine position 22 = section index 10 (22-2)/2 = 10
+              startSectionIndex = Math.floor((spinePos - 2) / 2);
+
+              // Validate and adjust if needed
+              if (startSectionIndex < 0) {
+                startSectionIndex = 0;
+              } else if (startSectionIndex >= this.sections.length) {
+                // Try alternative calculations
+                startSectionIndex = spinePos - 2; // Direct offset
+                if (startSectionIndex >= this.sections.length) {
+                  startSectionIndex = Math.floor(spinePos / 2) - 1; // Another calculation
+                }
+                if (startSectionIndex >= this.sections.length) {
+                  startSectionIndex = this.sections.length - 1; // Fallback to last section
+                }
+              }
+
+              hasSavedProgress = true;
+              console.log(
+                "[CustomScrollManager] Calculated section index:",
+                startSectionIndex
+              );
+              console.log(
+                "[CustomScrollManager] Section href:",
+                this.sections[startSectionIndex]?.href
+              );
+            }
+
+            // Fallback: try to use the CFI directly with the book's API
+            if (!hasSavedProgress) {
+              try {
                 console.log(
-                  "[CustomScrollManager] Found section from CFI:",
-                  startSectionIndex
+                  "[CustomScrollManager] Using book API to resolve CFI"
+                );
+                const section = this.book.spine.get(cfi);
+                if (section) {
+                  startSectionIndex = section.index;
+                  hasSavedProgress = true;
+                  console.log(
+                    "[CustomScrollManager] Found section from CFI:",
+                    startSectionIndex
+                  );
+                }
+              } catch (spineError) {
+                console.error(
+                  "[CustomScrollManager] Error using spine.get():",
+                  spineError
                 );
               }
             }
@@ -452,6 +489,12 @@ class CustomScrollManager {
       console.log(
         `[CustomScrollManager] Calling section.item.load for section ${index}`
       );
+
+      // Ensure the section has access to the book object
+      if (section.item && !section.item.book) {
+        section.item.book = this.book;
+      }
+
       await section.item.load(this.book.load.bind(this.book));
       console.log(
         `[CustomScrollManager] Section ${index} content loaded successfully`
@@ -1495,47 +1538,89 @@ class CustomScrollManager {
           this.savedProgress.cfi
         );
         try {
-          // Extract the section index from the CFI
-          // CFI format is typically like: epubcfi(/6/76!/4/2[div1a]/2[c05]/1:0)
           const cfi = this.savedProgress.cfi;
-          const match = cfi.match(/epubcfi\(\/6\/(\d+)/);
+          let sectionIndex = null;
 
+          // Extract spine position from CFI
+          // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0)
+          let match = cfi.match(/epubcfi\(\/6\/(\d+)!/);
           if (match && match[1]) {
             const spinePos = parseInt(match[1], 10);
             console.log(
               "[CustomScrollManager] Extracted spine position from CFI:",
               spinePos
             );
+            console.log(
+              "[CustomScrollManager] Total sections:",
+              this.sections.length
+            );
 
-            // Adjust for 0-based indexing
-            const sectionIndex = spinePos - 1;
+            // For this book format, spine positions start at 2 and increment by 2
+            // So spine position 22 = section index 10 (22-2)/2 = 10
+            sectionIndex = Math.floor((spinePos - 2) / 2);
 
-            // Validate the section index
-            if (sectionIndex >= 0 && sectionIndex < this.sections.length) {
-              console.log(
-                "[CustomScrollManager] Navigating to section from CFI:",
-                sectionIndex
-              );
-              await this.navigateToSection(sectionIndex, true);
-              return; // Exit early if successful
-            } else {
-              console.warn(
-                `[CustomScrollManager] Invalid section index from CFI: ${sectionIndex}, max: ${
-                  this.sections.length - 1
-                }`
-              );
+            // Validate and adjust if needed
+            if (sectionIndex < 0) {
+              sectionIndex = 0;
+            } else if (sectionIndex >= this.sections.length) {
+              // Try alternative calculations
+              sectionIndex = spinePos - 2; // Direct offset
+              if (sectionIndex >= this.sections.length) {
+                sectionIndex = Math.floor(spinePos / 2) - 1; // Another calculation
+              }
+              if (sectionIndex >= this.sections.length) {
+                sectionIndex = this.sections.length - 1; // Fallback to last section
+              }
             }
+
+            console.log(
+              "[CustomScrollManager] Calculated section index:",
+              sectionIndex
+            );
+            console.log(
+              "[CustomScrollManager] Section href:",
+              this.sections[sectionIndex]?.href
+            );
+          }
+
+          // Validate the section index
+          if (
+            sectionIndex !== null &&
+            sectionIndex >= 0 &&
+            sectionIndex < this.sections.length
+          ) {
+            console.log(
+              "[CustomScrollManager] Navigating to section from CFI:",
+              sectionIndex
+            );
+            await this.navigateToSection(sectionIndex, true);
+            return; // Exit early if successful
           } else {
-            // Try to use the CFI directly with the book's API
-            console.log("[CustomScrollManager] Using book API to resolve CFI");
-            const section = this.book.spine.get(cfi);
-            if (section) {
+            console.warn(
+              `[CustomScrollManager] Invalid section index from CFI: ${sectionIndex}, max: ${
+                this.sections.length - 1
+              }`
+            );
+
+            // Fallback: try to use the CFI directly with the book's API
+            try {
               console.log(
-                "[CustomScrollManager] Found section from CFI:",
-                section.index
+                "[CustomScrollManager] Using book API to resolve CFI"
               );
-              await this.navigateToSection(section.index, true);
-              return; // Exit early if successful
+              const section = this.book.spine.get(cfi);
+              if (section) {
+                console.log(
+                  "[CustomScrollManager] Found section from CFI:",
+                  section.index
+                );
+                await this.navigateToSection(section.index, true);
+                return; // Exit early if successful
+              }
+            } catch (spineError) {
+              console.error(
+                "[CustomScrollManager] Error using spine.get():",
+                spineError
+              );
             }
           }
         } catch (error) {

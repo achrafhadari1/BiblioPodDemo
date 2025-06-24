@@ -9,7 +9,6 @@ import ePub from "epubjs";
 import axios from "../../api/axios";
 import "../../index.css";
 import "../../styles/fonts.css";
-import { bookStorageDB } from "../../utils/bookStorageDB";
 import { AiOutlineFullscreen } from "react-icons/ai";
 import { GrNext, GrPrevious } from "react-icons/gr";
 import { FiMoon } from "react-icons/fi";
@@ -26,6 +25,7 @@ import {
   loadReadingProgress,
   saveReadingProgress,
 } from "../../utils/userPreferences";
+import bookStorageDB from "../../utils/bookStorageDB";
 import { useCustomScrollManager } from "../EpubReaderComponents/CustomScrollManager";
 
 // Utility function to detect mobile devices
@@ -161,11 +161,21 @@ function EpubReader() {
         setLoadingMessage("Loading reading progress...");
         console.log("[PROGRESS] Fetching progress for bookValue:", bookValue);
 
-        const savedProgress = await loadReadingProgress(bookValue);
-        console.log("[PROGRESS] Loaded progress from storage:", savedProgress);
+        // Use bookStorageDB instead of userPreferencesDB for consistency
+        const progress = await bookStorageDB.getReadingProgress(bookValue);
+        console.log("[PROGRESS] Loaded progress from bookStorageDB:", progress);
 
-        if (savedProgress && savedProgress.location) {
+        if (progress && progress.current_cfi) {
           console.log("[PROGRESS] Valid progress found, storing for later use");
+          // Convert bookStorageDB format to expected format
+          const savedProgress = {
+            location: {
+              start: { cfi: progress.current_cfi },
+              end: { cfi: progress.current_cfi },
+            },
+            percentage: progress.current_percentage || 0,
+            cfi: progress.current_cfi,
+          };
           setSavedProgressData(savedProgress);
           setLoadingMessage("Reading progress loaded");
         } else {
@@ -2849,13 +2859,24 @@ function EpubReader() {
           "- Mode: paginated"
         );
 
-        if (currentLocation) {
+        // If we're coming from scrolled mode and have a CFI, prioritize using that
+        if (readingMode === "scrolled" && currentCFI) {
+          console.log(
+            "[READING_MODE] Using currentCFI for paginated mode:",
+            currentCFI
+          );
+          await newRendition.display(currentCFI);
+        }
+        // Otherwise use the currentLocation if available
+        else if (currentLocation) {
           console.log(
             "[READING_MODE] Displaying at specific location:",
             currentLocation
           );
           await newRendition.display(currentLocation);
-        } else {
+        }
+        // Fallback to beginning if no location is available
+        else {
           console.log(
             "[READING_MODE] No location provided, displaying from beginning"
           );
@@ -2916,6 +2937,125 @@ function EpubReader() {
           currentLocation
         );
 
+        // Get the current CFI from the rendition
+        let cfi = null;
+        try {
+          if (rendition && rendition.currentLocation) {
+            const loc = rendition.currentLocation();
+            if (loc && loc.start && loc.start.cfi) {
+              cfi = loc.start.cfi;
+            } else if (typeof loc === "string") {
+              cfi = loc;
+            } else if (currentCFI) {
+              cfi = currentCFI;
+            }
+          } else if (currentCFI) {
+            cfi = currentCFI;
+          }
+        } catch (error) {
+          console.error("[READING_MODE] Error getting current CFI:", error);
+          if (currentCFI) {
+            cfi = currentCFI;
+          }
+        }
+
+        console.log("[READING_MODE] Current CFI for scroll manager:", cfi);
+
+        // Try to extract the section index from the CFI
+        let sectionIndex = null;
+        if (cfi && book && book.spine) {
+          try {
+            console.log("[READING_MODE] Parsing CFI:", cfi);
+
+            // Try multiple CFI formats
+            // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0) - extract spine position
+            let match = cfi.match(/epubcfi\(\/6\/(\d+)!/);
+            if (match && match[1]) {
+              const spinePos = parseInt(match[1], 10);
+              console.log(
+                "[READING_MODE] Extracted spine position from CFI:",
+                spinePos
+              );
+
+              // Find the corresponding section index
+              const spineItems = book.spine.spineItems;
+              if (spineItems && spineItems.length > 0) {
+                console.log(
+                  "[READING_MODE] Total spine items:",
+                  spineItems.length
+                );
+
+                // For this book format, spine positions start at 2 and increment by 2
+                // So spine position 22 = section index 10 (22-2)/2 = 10
+                sectionIndex = Math.floor((spinePos - 2) / 2);
+
+                // Validate and adjust if needed
+                if (sectionIndex < 0) {
+                  sectionIndex = 0;
+                } else if (sectionIndex >= spineItems.length) {
+                  // Try alternative calculations
+                  sectionIndex = spinePos - 2; // Direct offset
+                  if (sectionIndex >= spineItems.length) {
+                    sectionIndex = Math.floor(spinePos / 2) - 1; // Another calculation
+                  }
+                  if (sectionIndex >= spineItems.length) {
+                    sectionIndex = spineItems.length - 1; // Fallback to last section
+                  }
+                }
+
+                console.log(
+                  "[READING_MODE] Calculated section index:",
+                  sectionIndex
+                );
+                console.log(
+                  "[READING_MODE] Section href:",
+                  spineItems[sectionIndex]?.href
+                );
+              }
+            }
+
+            // Fallback: try to use the book's spine API directly
+            if (
+              sectionIndex === null ||
+              sectionIndex < 0 ||
+              sectionIndex >= book.spine.spineItems.length
+            ) {
+              try {
+                const section = book.spine.get(cfi);
+                if (section) {
+                  sectionIndex = section.index;
+                  console.log(
+                    "[READING_MODE] Resolved section index via spine.get():",
+                    sectionIndex
+                  );
+                }
+              } catch (spineError) {
+                console.error(
+                  "[READING_MODE] Error using spine.get():",
+                  spineError
+                );
+              }
+            }
+
+            // Final validation
+            if (sectionIndex !== null) {
+              sectionIndex = Math.max(
+                0,
+                Math.min(book.spine.spineItems.length - 1, sectionIndex)
+              );
+              console.log(
+                "[READING_MODE] Final validated section index:",
+                sectionIndex
+              );
+            }
+          } catch (error) {
+            console.error(
+              "[READING_MODE] Error extracting section index:",
+              error
+            );
+          }
+        }
+
         // Format the progress data properly for the scroll manager
         let formattedProgress = {
           location: currentLocation,
@@ -2923,7 +3063,13 @@ function EpubReader() {
           chapter: currentChapter,
           scrollPosition:
             window.pageYOffset || document.documentElement.scrollTop,
+          cfi: cfi,
         };
+
+        // If we found a section index, add it to the progress data
+        if (sectionIndex !== null) {
+          formattedProgress.sectionIndex = sectionIndex;
+        }
 
         console.log(
           "[READING_MODE] Formatted progress for scroll manager:",

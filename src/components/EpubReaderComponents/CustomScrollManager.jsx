@@ -140,14 +140,14 @@ class CustomScrollManager {
           this.container = document.createElement("div");
           this.container.id = "viewer-fallback";
           this.container.style.cssText = `
-              position: fixed;
-              top: 0;
-              left: 0;
-              width: 100%;
-              height: 100vh;
-              z-index: 1000;
-              background: white;
-            `;
+               position: fixed;
+               top: 0;
+               left: 0;
+               width: 100%;
+               height: 100vh;
+               z-index: 1000;
+               background: white;
+             `;
           document.body.appendChild(this.container);
           console.log(
             "[CustomScrollManager] Created fallback viewer container"
@@ -162,15 +162,15 @@ class CustomScrollManager {
         // Set up container styles - use main page scroll, full width
         // Override any existing epub-viewer CSS that might interfere
         this.container.style.cssText = `
-            width: 100vw !important;
-            max-width: 100vw !important;
-            min-height: 100vh;
-            overflow: visible !important;
-            position: relative !important;
-            background: #ffffff;
-            margin: 0 !important;
-            padding: 0 !important;
-          `;
+             width: 100vw !important;
+             max-width: 100vw !important;
+             min-height: 100vh;
+             overflow: visible !important;
+             position: relative !important;
+             background: #ffffff;
+             margin: 0 !important;
+             padding: 0 !important;
+           `;
 
         // Ensure body can scroll
         document.body.style.overflow = "auto";
@@ -178,12 +178,12 @@ class CustomScrollManager {
         // Create sections container
         this.sectionsContainer = document.createElement("div");
         this.sectionsContainer.style.cssText = `
-            width: 100%;
-            min-height: 100vh;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-          `;
+             width: 100%;
+             min-height: 100vh;
+             position: relative;
+             display: flex;
+             flex-direction: column;
+           `;
         this.container.appendChild(this.sectionsContainer);
 
         // Add event listeners - use window scroll instead of container scroll
@@ -201,54 +201,215 @@ class CustomScrollManager {
   async loadInitialSections() {
     // Load the first few sections for initial scrolling
     if (this.sections.length > 0) {
-      // Load first section
-      await this.loadSection(0);
-      this.currentSectionIndex = 0;
+      // Check if we have saved progress to determine which section to load first
+      let startSectionIndex = 0;
+      let hasSavedProgress = false;
 
-      // Load next few sections for scrolling (preload count + 1)
-      const sectionsToLoad = Math.min(
-        this.options.preloadCount + 2,
-        this.sections.length
-      );
-      console.log(
-        `[CustomScrollManager] Loading initial ${sectionsToLoad} sections (preloadCount: ${this.options.preloadCount})`
-      );
-
-      for (let i = 1; i < sectionsToLoad; i++) {
+      // If we have saved progress, prioritize loading that section first
+      if (this.savedProgress) {
         console.log(
-          `[CustomScrollManager] Loading section ${i}/${sectionsToLoad - 1}`
+          "[CustomScrollManager] Checking saved progress for initial load:",
+          this.savedProgress
         );
+
+        // PRIORITY 1: Use direct section index if available (most reliable)
+        if (this.savedProgress.sectionIndex !== undefined) {
+          startSectionIndex = this.savedProgress.sectionIndex;
+          hasSavedProgress = true;
+          console.log(
+            "[CustomScrollManager] Using direct section index for initial load:",
+            startSectionIndex
+          );
+        }
+        // PRIORITY 2: Use CFI if available
+        else if (this.savedProgress.cfi) {
+          try {
+            console.log(
+              "[CustomScrollManager] Trying to extract section from CFI:",
+              this.savedProgress.cfi
+            );
+
+            // Extract the section index from the CFI
+            // CFI format is typically like: epubcfi(/6/76!/4/2[div1a]/2[c05]/1:0)
+            const cfi = this.savedProgress.cfi;
+            const match = cfi.match(/epubcfi\(\/6\/(\d+)/);
+
+            if (match && match[1]) {
+              const spinePos = parseInt(match[1], 10);
+              console.log(
+                "[CustomScrollManager] Extracted spine position from CFI:",
+                spinePos
+              );
+
+              // Adjust for 0-based indexing
+              startSectionIndex = spinePos - 1;
+              hasSavedProgress = true;
+            } else {
+              // Try to use the CFI directly with the book's API
+              console.log(
+                "[CustomScrollManager] Using book API to resolve CFI"
+              );
+              const section = this.book.spine.get(cfi);
+              if (section) {
+                startSectionIndex = section.index;
+                hasSavedProgress = true;
+                console.log(
+                  "[CustomScrollManager] Found section from CFI:",
+                  startSectionIndex
+                );
+              }
+            }
+          } catch (error) {
+            console.error("[CustomScrollManager] Error processing CFI:", error);
+          }
+        }
+        // PRIORITY 3: Check location object
+        else if (this.savedProgress.location) {
+          if (
+            typeof this.savedProgress.location === "object" &&
+            typeof this.savedProgress.location.index === "number"
+          ) {
+            startSectionIndex = this.savedProgress.location.index;
+            hasSavedProgress = true;
+            console.log(
+              "[CustomScrollManager] Using saved index for initial load:",
+              startSectionIndex
+            );
+          } else if (typeof this.savedProgress.location === "string") {
+            // Try to get section index from string location
+            try {
+              // First try direct spine lookup
+              const section = this.book.spine.get(this.savedProgress.location);
+              if (section) {
+                startSectionIndex = section.index;
+                hasSavedProgress = true;
+                console.log(
+                  "[CustomScrollManager] Found section from string location:",
+                  startSectionIndex
+                );
+              } else {
+                // Try by href
+                const spinePosition =
+                  this.book.spine.spineByHref[this.savedProgress.location] ||
+                  this.book.spine.spineByHref[
+                    this.savedProgress.location.split("#")[0]
+                  ];
+
+                if (spinePosition) {
+                  startSectionIndex = spinePosition.index;
+                  hasSavedProgress = true;
+                  console.log(
+                    "[CustomScrollManager] Using spine position for initial load:",
+                    startSectionIndex
+                  );
+                }
+              }
+            } catch (error) {
+              console.error(
+                "[CustomScrollManager] Error getting section from location string:",
+                error
+              );
+            }
+          }
+        }
+        // PRIORITY 4: Use percentage as last resort
+        else if (this.savedProgress.percentage !== undefined) {
+          // Use percentage to determine starting section
+          startSectionIndex = Math.floor(
+            this.savedProgress.percentage * this.sections.length
+          );
+          hasSavedProgress = true;
+          console.log(
+            "[CustomScrollManager] Using percentage for initial load:",
+            startSectionIndex
+          );
+        }
+
+        // Ensure valid index
+        startSectionIndex = Math.max(
+          0,
+          Math.min(this.sections.length - 1, startSectionIndex)
+        );
+        console.log(
+          "[CustomScrollManager] Final validated start section index:",
+          startSectionIndex
+        );
+      }
+
+      // Load the starting section first
+      await this.loadSection(startSectionIndex);
+      this.currentSectionIndex = startSectionIndex;
+
+      console.log(
+        `[CustomScrollManager] Loaded initial section ${startSectionIndex}`
+      );
+
+      // Load surrounding sections for scrolling
+      const preloadCount = this.options.preloadCount;
+
+      // Calculate range of sections to load
+      const startIndex = Math.max(0, startSectionIndex - preloadCount);
+      const endIndex = Math.min(
+        this.sections.length - 1,
+        startSectionIndex + preloadCount
+      );
+
+      console.log(
+        `[CustomScrollManager] Loading surrounding sections from ${startIndex} to ${endIndex}`
+      );
+
+      // Load sections before the current section
+      for (let i = startSectionIndex - 1; i >= startIndex; i--) {
         try {
-          await this.loadSection(i);
-          console.log(`[CustomScrollManager] Successfully loaded section ${i}`);
+          if (!this.sections[i].loaded) {
+            await this.loadSection(i);
+            console.log(`[CustomScrollManager] Loaded previous section ${i}`);
+          }
         } catch (error) {
           console.error(
             `[CustomScrollManager] Failed to load section ${i}:`,
             error
           );
-          // Continue loading other sections even if one fails
         }
       }
 
-      // If we have saved progress, also load that section and surrounding sections
-      if (this.savedProgress && this.savedProgress.location) {
-        const savedIndex = this.savedProgress.location.index;
-        if (savedIndex && savedIndex > 0 && savedIndex < this.sections.length) {
-          console.log(
-            "[CustomScrollManager] Pre-loading saved progress section:",
-            savedIndex
+      // Load sections after the current section
+      for (let i = startSectionIndex + 1; i <= endIndex; i++) {
+        try {
+          if (!this.sections[i].loaded) {
+            await this.loadSection(i);
+            console.log(`[CustomScrollManager] Loaded next section ${i}`);
+          }
+        } catch (error) {
+          console.error(
+            `[CustomScrollManager] Failed to load section ${i}:`,
+            error
           );
+        }
+      }
 
-          // Load the saved section and a few around it
-          const startIndex = Math.max(0, savedIndex - 1);
-          const endIndex = Math.min(
-            this.sections.length - 1,
-            savedIndex + this.options.preloadCount
-          );
+      // If we didn't have saved progress, load a few more sections at the beginning
+      if (!hasSavedProgress) {
+        const additionalSectionsToLoad = Math.min(
+          preloadCount + 1,
+          this.sections.length
+        );
+        console.log(
+          `[CustomScrollManager] Loading additional ${additionalSectionsToLoad} sections from beginning`
+        );
 
-          for (let i = startIndex; i <= endIndex; i++) {
-            if (!this.sections[i].loaded) {
+        for (let i = 1; i < additionalSectionsToLoad; i++) {
+          if (!this.sections[i].loaded) {
+            try {
               await this.loadSection(i);
+              console.log(
+                `[CustomScrollManager] Loaded additional section ${i}`
+              );
+            } catch (error) {
+              console.error(
+                `[CustomScrollManager] Failed to load additional section ${i}:`,
+                error
+              );
             }
           }
         }
@@ -312,14 +473,14 @@ class CustomScrollManager {
       const backgroundColor = this.isDarkTheme ? "#1a1a1a" : "#ffffff";
 
       sectionElement.style.cssText = `
-          width: 100vw;
-          margin: 0;
-          padding: ${padding};
-          background: ${backgroundColor};
-          min-height: 100vh;
-          box-sizing: border-box;
-          position: relative;
-        `;
+           width: 100vw;
+           margin: 0;
+           padding: ${padding};
+           background: ${backgroundColor};
+           min-height: 100vh;
+           box-sizing: border-box;
+           position: relative;
+         `;
 
       // Clone the section content
       const content = section.item.document.body.cloneNode(true);
@@ -439,90 +600,90 @@ class CustomScrollManager {
 
     // Apply clean typography styles to the content
     content.style.cssText = `
-        font-family: ${fontFamily};
-        line-height: 1.7;
-        color: ${textColor};
-        font-size: ${fontSize};
-        text-align: justify;
-        hyphens: auto;
-        word-spacing: 0.1em;
-      `;
+         font-family: ${fontFamily};
+         line-height: 1.7;
+         color: ${textColor};
+         font-size: ${fontSize};
+         text-align: justify;
+         hyphens: auto;
+         word-spacing: 0.1em;
+       `;
 
     // Style paragraphs
     const paragraphs = content.querySelectorAll("p");
     paragraphs.forEach((p) => {
       p.style.cssText = `
-          margin: 0 0 1.5em 0;
-          text-indent: 1.5em;
-          line-height: 1.7;
-        `;
+           margin: 0 0 1.5em 0;
+           text-indent: 1.5em;
+           line-height: 1.7;
+         `;
     });
 
     // Style headings with epubjs-inspired styling
     const headings = content.querySelectorAll("h1, h2, h3, h4, h5, h6");
     headings.forEach((heading) => {
       heading.style.cssText = `
-          font-family: ${this.userFontFamily || "Georgia, serif"};
-          font-weight: normal;
-          margin: 0;
-          line-height: 1.2;
-          color: ${this.isDarkTheme ? "#ffffff" : "#1a1a1a"};
-          text-indent: 0;
-          text-align: center;
-          letter-spacing: 0.02em;
-        `;
+           font-family: ${this.userFontFamily || "Georgia, serif"};
+           font-weight: normal;
+           margin: 0;
+           line-height: 1.2;
+           color: ${this.isDarkTheme ? "#ffffff" : "#1a1a1a"};
+           text-indent: 0;
+           text-align: center;
+           letter-spacing: 0.02em;
+         `;
     });
 
     // Style h1 specifically (Chapter titles)
     const h1s = content.querySelectorAll("h1");
     h1s.forEach((h1) => {
       h1.style.cssText += `
-          font-size: 2.5em;
-          font-weight: 300;
-          margin: 3em 0 2.5em 0;
-          padding: 0 2em;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          border-bottom: 1px solid ${this.isDarkTheme ? "#444" : "#e0e0e0"};
-          padding-bottom: 0.5em;
-          page-break-before: always;
-        `;
+           font-size: 2.5em;
+           font-weight: 300;
+           margin: 3em 0 2.5em 0;
+           padding: 0 2em;
+           text-transform: uppercase;
+           letter-spacing: 0.1em;
+           border-bottom: 1px solid ${this.isDarkTheme ? "#444" : "#e0e0e0"};
+           padding-bottom: 0.5em;
+           page-break-before: always;
+         `;
     });
 
     // Style h2 (Section titles)
     const h2s = content.querySelectorAll("h2");
     h2s.forEach((h2) => {
       h2.style.cssText += `
-          font-size: 1.8em;
-          font-weight: 400;
-          margin: 2.5em 0 1.5em 0;
-          text-transform: capitalize;
-          letter-spacing: 0.05em;
-        `;
+           font-size: 1.8em;
+           font-weight: 400;
+           margin: 2.5em 0 1.5em 0;
+           text-transform: capitalize;
+           letter-spacing: 0.05em;
+         `;
     });
 
     // Style h3 (Subsection titles)
     const h3s = content.querySelectorAll("h3");
     h3s.forEach((h3) => {
       h3.style.cssText += `
-          font-size: 1.4em;
-          font-weight: 500;
-          margin: 2em 0 1em 0;
-          text-align: left;
-        `;
+           font-size: 1.4em;
+           font-weight: 500;
+           margin: 2em 0 1em 0;
+           text-align: left;
+         `;
     });
 
     // Handle images and SVGs
     const images = content.querySelectorAll("img, image");
     images.forEach((img) => {
       img.style.cssText = `
-          max-width: 100%;
-          height: auto;
-          display: block;
-          margin: 2em auto;
-          border-radius: 4px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        `;
+           max-width: 100%;
+           height: auto;
+           display: block;
+           margin: 2em auto;
+           border-radius: 4px;
+           box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+         `;
 
       // Get the source URL - handle both img src and SVG image xlink:href
       const originalSrc =
@@ -612,13 +773,13 @@ class CustomScrollManager {
     const blockquotes = content.querySelectorAll("blockquote");
     blockquotes.forEach((bq) => {
       bq.style.cssText = `
-          margin: 2em 0;
-          padding: 1em 2em;
-          border-left: 4px solid #e0e0e0;
-          background: #f9f9f9;
-          font-style: italic;
-          text-indent: 0;
-        `;
+           margin: 2em 0;
+           padding: 1em 2em;
+           border-left: 4px solid #e0e0e0;
+           background: #f9f9f9;
+           font-style: italic;
+           text-indent: 0;
+         `;
     });
 
     // Handle emphasis and strong
@@ -636,10 +797,10 @@ class CustomScrollManager {
     const links = content.querySelectorAll("a");
     links.forEach((link) => {
       link.style.cssText = `
-          color: #3498db;
-          text-decoration: none;
-          border-bottom: 1px solid #3498db;
-        `;
+           color: #3498db;
+           text-decoration: none;
+           border-bottom: 1px solid #3498db;
+         `;
 
       // Prevent default link behavior and handle internally
       link.addEventListener("click", (e) => {
@@ -659,17 +820,17 @@ class CustomScrollManager {
     const lists = content.querySelectorAll("ul, ol");
     lists.forEach((list) => {
       list.style.cssText = `
-          margin: 1.5em 0;
-          padding-left: 2em;
-        `;
+           margin: 1.5em 0;
+           padding-left: 2em;
+         `;
     });
 
     const listItems = content.querySelectorAll("li");
     listItems.forEach((li) => {
       li.style.cssText = `
-          margin: 0.5em 0;
-          line-height: 1.6;
-        `;
+           margin: 0.5em 0;
+           line-height: 1.6;
+         `;
     });
 
     // Handle styles
@@ -1300,110 +1461,339 @@ class CustomScrollManager {
       "[CustomScrollManager] restoreProgress called, savedProgress:",
       this.savedProgress
     );
-    if (!this.savedProgress || !this.savedProgress.location) {
+    if (!this.savedProgress) {
       console.log("[CustomScrollManager] No saved progress to restore");
       return;
     }
 
-    console.log(
-      "[CustomScrollManager] Restoring progress to:",
-      this.savedProgress.location
-    );
-
     try {
-      const location = this.savedProgress.location;
-
-      // Method 1: Try to navigate by href if available
-      if (location.href) {
-        console.log("[CustomScrollManager] Restoring by href:", location.href);
-        await this.navigateToHref(location.href, true); // Use instant navigation
-      }
-      // Method 2: Try to navigate by section index
-      else if (typeof location.index === "number") {
+      // PRIORITY 1: Use direct section index if available (most reliable)
+      if (this.savedProgress.sectionIndex !== undefined) {
+        const sectionIndex = this.savedProgress.sectionIndex;
         console.log(
-          "[CustomScrollManager] Restoring by section index:",
-          location.index
+          "[CustomScrollManager] Restoring by direct section index:",
+          sectionIndex
         );
-        await this.navigateToSection(location.index, true); // Use instant navigation
+
+        // Validate the section index
+        if (sectionIndex >= 0 && sectionIndex < this.sections.length) {
+          await this.navigateToSection(sectionIndex, true);
+          return; // Exit early if successful
+        } else {
+          console.warn(
+            `[CustomScrollManager] Invalid section index: ${sectionIndex}, max: ${
+              this.sections.length - 1
+            }`
+          );
+        }
       }
-      // Method 3: Try to use percentage to calculate position
-      else if (location.percentage) {
+
+      // PRIORITY 2: Use CFI if available
+      if (this.savedProgress.cfi) {
+        console.log(
+          "[CustomScrollManager] Restoring by CFI:",
+          this.savedProgress.cfi
+        );
+        try {
+          // Extract the section index from the CFI
+          // CFI format is typically like: epubcfi(/6/76!/4/2[div1a]/2[c05]/1:0)
+          const cfi = this.savedProgress.cfi;
+          const match = cfi.match(/epubcfi\(\/6\/(\d+)/);
+
+          if (match && match[1]) {
+            const spinePos = parseInt(match[1], 10);
+            console.log(
+              "[CustomScrollManager] Extracted spine position from CFI:",
+              spinePos
+            );
+
+            // Adjust for 0-based indexing
+            const sectionIndex = spinePos - 1;
+
+            // Validate the section index
+            if (sectionIndex >= 0 && sectionIndex < this.sections.length) {
+              console.log(
+                "[CustomScrollManager] Navigating to section from CFI:",
+                sectionIndex
+              );
+              await this.navigateToSection(sectionIndex, true);
+              return; // Exit early if successful
+            } else {
+              console.warn(
+                `[CustomScrollManager] Invalid section index from CFI: ${sectionIndex}, max: ${
+                  this.sections.length - 1
+                }`
+              );
+            }
+          } else {
+            // Try to use the CFI directly with the book's API
+            console.log("[CustomScrollManager] Using book API to resolve CFI");
+            const section = this.book.spine.get(cfi);
+            if (section) {
+              console.log(
+                "[CustomScrollManager] Found section from CFI:",
+                section.index
+              );
+              await this.navigateToSection(section.index, true);
+              return; // Exit early if successful
+            }
+          }
+        } catch (error) {
+          console.error("[CustomScrollManager] Error processing CFI:", error);
+        }
+      }
+
+      // PRIORITY 3: Check if we have a location property
+      if (this.savedProgress.location) {
+        console.log(
+          "[CustomScrollManager] Checking location object:",
+          this.savedProgress.location
+        );
+
+        const location = this.savedProgress.location;
+
+        // Handle different location formats
+        if (typeof location === "string") {
+          // This is likely a CFI from paginated mode
+          console.log(
+            "[CustomScrollManager] Converting string location:",
+            location
+          );
+          try {
+            // Try to get the section index from the location string
+            const section = this.book.spine.get(location);
+            if (section) {
+              console.log(
+                "[CustomScrollManager] Found section from string location:",
+                section.index
+              );
+              await this.navigateToSection(section.index, true);
+              return; // Exit early if successful
+            }
+          } catch (error) {
+            console.error(
+              "[CustomScrollManager] Error converting string location:",
+              error
+            );
+          }
+        } else {
+          // Handle object-based location
+          // Try to navigate by href if available
+          if (location.href) {
+            console.log(
+              "[CustomScrollManager] Restoring by href:",
+              location.href
+            );
+            await this.navigateToHref(location.href, true);
+            return; // Exit early if successful
+          }
+          // Try to navigate by section index
+          else if (typeof location.index === "number") {
+            console.log(
+              "[CustomScrollManager] Restoring by location index:",
+              location.index
+            );
+            if (location.index >= 0 && location.index < this.sections.length) {
+              await this.navigateToSection(location.index, true);
+              return; // Exit early if successful
+            }
+          }
+        }
+      }
+
+      // PRIORITY 4: Use percentage as last resort
+      if (this.savedProgress.percentage !== undefined) {
         console.log(
           "[CustomScrollManager] Restoring by percentage:",
-          location.percentage
+          this.savedProgress.percentage
         );
+
+        // Calculate target section from percentage
         const targetSection = Math.floor(
-          location.percentage * this.sections.length
+          this.savedProgress.percentage * this.sections.length
         );
-        await this.navigateToSection(targetSection, true); // Use instant navigation
+
+        // Validate the section index
+        if (targetSection >= 0 && targetSection < this.sections.length) {
+          await this.navigateToSection(targetSection, true);
+          return; // Exit early if successful
+        }
       }
 
-      // Wait for sections to load and then restore scroll position
-      setTimeout(() => {
+      // If all else fails, log the failure
+      console.warn(
+        "[CustomScrollManager] Failed to restore progress with any method"
+      );
+    } catch (error) {
+      console.error("[CustomScrollManager] Error in restoreProgress:", error);
+    }
+
+    // Wait for sections to load and then restore scroll position
+    setTimeout(() => {
+      try {
         // If there's a specific scroll position, restore it
         if (this.savedProgress.scrollPosition) {
           console.log(
             "[CustomScrollManager] Restoring scroll position:",
             this.savedProgress.scrollPosition
           );
-          window.scrollTo(0, this.savedProgress.scrollPosition);
+          window.scrollTo({
+            top: this.savedProgress.scrollPosition,
+            behavior: "auto",
+          });
+          return;
         }
-        // If no scroll position but we have percentage, calculate it
-        else if (location.percentage && this.sectionsContainer) {
+
+        // If we have a section index, try to scroll to that section
+        if (this.savedProgress.sectionIndex !== undefined) {
+          const sectionIndex = this.savedProgress.sectionIndex;
+          const section = this.sections[sectionIndex];
+          if (section && section.element) {
+            console.log(
+              "[CustomScrollManager] Scrolling to section element:",
+              sectionIndex
+            );
+            section.element.scrollIntoView({
+              behavior: "auto",
+              block: "start",
+            });
+            return;
+          }
+        }
+
+        // If we have a percentage, calculate scroll position
+        if (
+          this.savedProgress.percentage !== undefined &&
+          this.sectionsContainer
+        ) {
           const totalHeight = this.sectionsContainer.scrollHeight;
-          const targetScroll = totalHeight * location.percentage;
+          const targetScroll = totalHeight * this.savedProgress.percentage;
           console.log(
             "[CustomScrollManager] Calculating scroll from percentage:",
             targetScroll
           );
-          window.scrollTo(0, targetScroll);
+          window.scrollTo({
+            top: targetScroll,
+            behavior: "auto",
+          });
+          return;
         }
-      }, 1000); // Increased delay to ensure sections are loaded
-    } catch (error) {
-      console.error("[CustomScrollManager] Error restoring progress:", error);
 
-      // Fallback: try to restore by percentage if other methods fail
-      if (this.savedProgress.location.percentage) {
-        setTimeout(() => {
+        // If we have a location with percentage, use that
+        if (
+          this.savedProgress.location &&
+          this.savedProgress.location.percentage &&
+          this.sectionsContainer
+        ) {
+          const totalHeight = this.sectionsContainer.scrollHeight;
+          const targetScroll =
+            totalHeight * this.savedProgress.location.percentage;
+          console.log(
+            "[CustomScrollManager] Calculating scroll from location percentage:",
+            targetScroll
+          );
+          window.scrollTo({
+            top: targetScroll,
+            behavior: "auto",
+          });
+        }
+      } catch (error) {
+        console.error(
+          "[CustomScrollManager] Error restoring scroll position:",
+          error
+        );
+      }
+    }, 1500); // Increased delay to ensure sections are loaded
+  }
+  catch(error) {
+    console.error("[CustomScrollManager] Error restoring progress:", error);
+
+    // Fallback: try to restore by percentage if other methods fail
+    if (this.savedProgress.percentage !== undefined) {
+      setTimeout(() => {
+        try {
+          const totalHeight = document.documentElement.scrollHeight;
+          const targetScroll = totalHeight * this.savedProgress.percentage;
+          console.log(
+            "[CustomScrollManager] Fallback: scrolling to percentage position:",
+            targetScroll
+          );
+          window.scrollTo({
+            top: targetScroll,
+            behavior: "auto",
+          });
+        } catch (scrollError) {
+          console.error(
+            "[CustomScrollManager] Error in fallback scroll:",
+            scrollError
+          );
+        }
+      }, 2000);
+    } else if (
+      this.savedProgress.location &&
+      this.savedProgress.location.percentage
+    ) {
+      setTimeout(() => {
+        try {
           const totalHeight = document.documentElement.scrollHeight;
           const targetScroll =
             totalHeight * this.savedProgress.location.percentage;
           console.log(
-            "[CustomScrollManager] Fallback scroll restoration:",
+            "[CustomScrollManager] Fallback: scrolling to location percentage position:",
             targetScroll
           );
-          window.scrollTo(0, targetScroll);
-        }, 1500);
-      }
+          window.scrollTo({
+            top: targetScroll,
+            behavior: "auto",
+          });
+        } catch (scrollError) {
+          console.error(
+            "[CustomScrollManager] Error in location percentage fallback scroll:",
+            scrollError
+          );
+        }
+      }, 2000);
     }
   }
 
   destroy() {
-    // Clean up blob URLs to prevent memory leaks
-    if (this.container) {
-      const images = this.container.querySelectorAll("img[data-blob-url]");
-      images.forEach((img) => {
-        if (img.dataset.blobUrl) {
-          URL.revokeObjectURL(img.dataset.blobUrl);
+    try {
+      // Clean up blob URLs to prevent memory leaks
+      if (this.container) {
+        const images = this.container.querySelectorAll("img[data-blob-url]");
+        if (images && images.length > 0) {
+          images.forEach((img) => {
+            if (img && img.dataset && img.dataset.blobUrl) {
+              try {
+                URL.revokeObjectURL(img.dataset.blobUrl);
+              } catch (e) {
+                console.error("Error revoking blob URL:", e);
+              }
+            }
+          });
         }
-      });
+      }
+
+      // Clean up event listeners
+      window.removeEventListener("scroll", this.onScroll);
+      window.removeEventListener("resize", this.onResize);
+
+      // Clear timeouts
+      if (this.scrollTimeout) clearTimeout(this.scrollTimeout);
+      if (this.locationTimeout) clearTimeout(this.locationTimeout);
+
+      // Clear loaded sections
+      if (this.loadedSections && this.loadedSections.clear) {
+        this.loadedSections.clear();
+      }
+
+      // Reset state
+      this.sections = [];
+      this.container = null;
+      this.sectionsContainer = null;
+    } catch (error) {
+      console.error("Error in destroy method:", error);
     }
-
-    // Clean up event listeners
-    window.removeEventListener("scroll", this.onScroll);
-    window.removeEventListener("resize", this.onResize);
-
-    // Clear timeouts
-    clearTimeout(this.scrollTimeout);
-    clearTimeout(this.locationTimeout);
-
-    // Clear loaded sections
-    this.loadedSections.clear();
-
-    // Reset state
-    this.sections = [];
-    this.container = null;
-    this.sectionsContainer = null;
   }
 }
 

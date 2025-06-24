@@ -224,6 +224,9 @@ function EpubReaderCustom() {
         saveReadingProgress(bookValue, progressData).catch((error) => {
           console.error("[PROGRESS] Error saving progress:", error);
         });
+
+        // Also update the savedProgressData state to ensure it's available for restoration
+        setSavedProgressData(progressData);
       } else {
         console.log("[PROGRESS] Not saving - missing data:", {
           book: !!book,

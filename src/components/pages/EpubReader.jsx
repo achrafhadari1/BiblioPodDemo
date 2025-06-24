@@ -2770,6 +2770,32 @@ function EpubReader() {
         "[READING_MODE] Switching to paginated mode, recreating rendition"
       );
 
+      // If we're coming from scrolled mode, ensure we have the correct location format
+      if (readingMode === "scrolled" && scrollReadingProgress !== undefined) {
+        // Update the current percentage to match the scroll reading progress
+        setCurrentPercentage(Math.round(scrollReadingProgress * 100));
+
+        // If we have a location from the scroll manager, ensure it's properly formatted
+        if (currentLocation && typeof currentLocation === "object") {
+          console.log(
+            "[READING_MODE] Formatting scroll location for paginated mode:",
+            currentLocation
+          );
+
+          // Extract CFI if available
+          if (currentLocation.start?.cfi) {
+            currentLocation = currentLocation.start.cfi;
+          } else if (currentLocation.cfi) {
+            currentLocation = currentLocation.cfi;
+          }
+
+          console.log(
+            "[READING_MODE] Formatted location for paginated mode:",
+            currentLocation
+          );
+        }
+      }
+
       // Destroy current rendition if it exists
       if (rendition) {
         try {
@@ -2889,31 +2915,52 @@ function EpubReader() {
           "[READING_MODE] Saving location for scroll manager:",
           currentLocation
         );
+
+        // Format the progress data properly for the scroll manager
+        let formattedProgress = {
+          location: currentLocation,
+          percentage: currentPercentage / 100, // Convert percentage to decimal
+          chapter: currentChapter,
+          scrollPosition:
+            window.pageYOffset || document.documentElement.scrollTop,
+        };
+
+        console.log(
+          "[READING_MODE] Formatted progress for scroll manager:",
+          formattedProgress
+        );
+
         // Update the saved progress data so the scroll manager can use it
-        setSavedProgressData(currentLocation);
+        setSavedProgressData(formattedProgress);
 
         // Also set it directly on the scroll manager if it's available
         if (setSavedProgress) {
-          setSavedProgress(currentLocation);
+          setSavedProgress(formattedProgress);
         }
       }
 
       // Reset flags after a delay to allow the scroll manager to initialize and restore progress
       setTimeout(async () => {
         // Try to restore progress if we have a current location and the scroll manager is ready
-        if (currentLocation && restoreProgress) {
+        if (restoreProgress) {
           console.log(
             "[READING_MODE] Attempting to restore progress in scroll manager"
           );
           try {
+            // The restoreProgress function will use the savedProgress that was set earlier
             await restoreProgress();
+
+            // After restoring progress, update the current percentage to match
+            if (scrollReadingProgress !== undefined) {
+              setCurrentPercentage(Math.round(scrollReadingProgress * 100));
+            }
           } catch (error) {
             console.warn("Error restoring progress in scroll manager:", error);
           }
         }
         setIsUpdatingReadingMode(false);
         setIsNavigatingToChapter(false);
-      }, 1500); // Increased timeout to allow for scroll manager initialization
+      }, 2000); // Increased timeout to allow for scroll manager initialization
     }
   };
 

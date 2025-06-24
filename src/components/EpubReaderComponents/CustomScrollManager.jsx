@@ -701,7 +701,7 @@ class CustomScrollManager {
 
   processContent(content, section) {
     // Use user preferences for font settings
-    const baseFontSize = window.innerWidth <= 768 ? 16 : 18; // Base size in px
+    const baseFontSize = window.innerWidth <= 768 ? 24 : 28; // Base size in px (increased for better readability)
     const fontSize = `${baseFontSize * this.userFontSize}px`;
     const fontFamily = this.getFontWithFallback(this.userFontFamily);
     const textColor = this.isDarkTheme ? "#e0e0e0" : "#2c3e50";
@@ -712,6 +712,7 @@ class CustomScrollManager {
       fontSize,
       baseFontSize,
       userFontSize: this.userFontSize,
+      sectionIndex: section ? section.index : "unknown",
     });
 
     // Apply clean typography styles to the content with high specificity
@@ -1485,6 +1486,13 @@ class CustomScrollManager {
   }
 
   applyFontSettings(fontSize, fontFamily) {
+    console.log("[CustomScrollManager] applyFontSettings called with:", {
+      fontSize,
+      fontFamily,
+      currentUserFontSize: this.userFontSize,
+      currentUserFontFamily: this.userFontFamily,
+    });
+
     if (!this.sectionsContainer) {
       console.log(
         "[CustomScrollManager] No sections container, cannot apply font settings"
@@ -1503,13 +1511,35 @@ class CustomScrollManager {
       loadedSectionsCount: this.loadedSections.size,
     });
 
+    const startTime = performance.now();
+
     // Reprocess all loaded sections with new font settings
-    this.sections.forEach((section) => {
+    let reprocessedCount = 0;
+    this.sections.forEach((section, index) => {
       if (section.loaded && section.element && section.content) {
+        console.log(
+          `[CustomScrollManager] Reprocessing section ${index} with new font settings`
+        );
         // Reprocess the content with new font settings
         this.processContent(section.content, section);
+        reprocessedCount++;
+      } else {
+        console.log(
+          `[CustomScrollManager] Skipping section ${index} - loaded: ${section.loaded}, element: !!${section.element}, content: !!${section.content}`
+        );
       }
     });
+
+    console.log(
+      `[CustomScrollManager] Reprocessed ${reprocessedCount} sections out of ${this.sections.length} total sections`
+    );
+
+    const endTime = performance.now();
+    console.log(
+      `[CustomScrollManager] Font settings applied in ${(
+        endTime - startTime
+      ).toFixed(2)}ms`
+    );
 
     // Recalculate heights after font change
     setTimeout(() => {
@@ -1538,6 +1568,12 @@ class CustomScrollManager {
     if (preferences.isDarkTheme !== undefined) {
       this.isDarkTheme = preferences.isDarkTheme;
     }
+
+    // Apply the preferences to any existing loaded sections
+    console.log(
+      "[CustomScrollManager] Applying initialized preferences to existing sections"
+    );
+    this.applyFontSettings(this.userFontSize, this.userFontFamily);
   }
 
   // Fallback image resolution method

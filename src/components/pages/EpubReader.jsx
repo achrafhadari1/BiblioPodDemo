@@ -85,6 +85,10 @@ function EpubReader() {
   const [isUpdatingReadingMode, setIsUpdatingReadingMode] = useState(false);
   const [isNavigatingToChapter, setIsNavigatingToChapter] = useState(false);
   const [initialFontLoadComplete, setInitialFontLoadComplete] = useState(false);
+  const [
+    scrollManagerPreferencesInitialized,
+    setScrollManagerPreferencesInitialized,
+  ] = useState(false);
 
   // Touch/swipe state - using refs to avoid race conditions
   const touchStartRef = useRef(null);
@@ -110,7 +114,11 @@ function EpubReader() {
   // Font application debouncing
   const fontApplicationTimeoutRef = useRef(null);
   const lastFontApplicationRef = useRef(0);
-  const fontApplicationDebounceTime = 300; // ms
+  const fontApplicationDebounceTime = 100; // ms (reduced for more responsive updates)
+  const lastAppliedFontSettingsRef = useRef({
+    fontSize: null,
+    fontFamily: null,
+  });
 
   // Custom scroll manager hook - only used when readingMode is "scrolled"
   const {
@@ -711,7 +719,20 @@ function EpubReader() {
         });
 
         setIsDarkTheme(theme === "dark");
-        setFontSize(savedFontSize || DEFAULT_SETTINGS.fontSize);
+
+        // Ensure fontSize is numeric, not a string
+        const numericFontSize =
+          typeof savedFontSize === "string" && savedFontSize.includes("px")
+            ? parseFloat(savedFontSize) / 40 // Convert back from px to multiplier
+            : savedFontSize || DEFAULT_SETTINGS.fontSize;
+
+        console.log("[PREFERENCES] Loaded font size:", {
+          savedFontSize,
+          numericFontSize,
+          type: typeof numericFontSize,
+        });
+
+        setFontSize(numericFontSize);
         setFontFamily(savedFontFamily || DEFAULT_SETTINGS.fontFamily);
         setReadingMode(savedReadingMode || DEFAULT_SETTINGS.readingMode);
       } catch (error) {
@@ -1232,8 +1253,9 @@ function EpubReader() {
 
   // Apply font family changes
   useEffect(() => {
-    console.log("Font family effect triggered:", {
+    console.log("Font settings effect triggered:", {
       fontFamily,
+      fontSize,
       rendition: !!rendition,
       preferencesLoaded,
       isUpdatingReadingMode,
@@ -1246,9 +1268,40 @@ function EpubReader() {
       !isUpdatingReadingMode &&
       initialFontLoadComplete
     ) {
+      // Skip if scroll manager was just initialized to prevent duplicate applications
+      if (readingMode === "scrolled" && !scrollManagerPreferencesInitialized) {
+        console.log(
+          "Skipping font application - scroll manager preferences not yet initialized"
+        );
+        return;
+      }
+
+      // Check if settings have actually changed to prevent duplicate applications
+      const lastApplied = lastAppliedFontSettingsRef.current;
+      if (
+        lastApplied.fontSize === fontSize &&
+        lastApplied.fontFamily === fontFamily
+      ) {
+        console.log("Skipping font application - settings haven't changed", {
+          fontSize,
+          fontFamily,
+        });
+        return;
+      }
+
       console.log("Applying font settings via effect");
-      // Use debounced version to prevent rapid applications
-      debouncedApplyFontSettings();
+      // Update last applied settings
+      lastAppliedFontSettingsRef.current = { fontSize, fontFamily };
+
+      // For paginated mode, add a small delay to ensure rendition is fully ready
+      if (readingMode === "paginated") {
+        setTimeout(() => {
+          debouncedApplyFontSettings();
+        }, 100);
+      } else {
+        // Use debounced version to prevent rapid applications
+        debouncedApplyFontSettings();
+      }
     } else if (isUpdatingReadingMode) {
       console.log("Skipping font application - reading mode is being updated");
     } else if (!initialFontLoadComplete) {
@@ -1268,6 +1321,38 @@ function EpubReader() {
     isUpdatingReadingMode,
     readingMode,
     initialFontLoadComplete,
+    scrollManagerPreferencesInitialized,
+  ]);
+
+  // Initialize scroll manager with preferences when it becomes ready
+  useEffect(() => {
+    if (
+      readingMode === "scrolled" &&
+      scrollManagerInitialized &&
+      preferencesLoaded &&
+      initializeWithPreferences
+    ) {
+      console.log("[SCROLL MANAGER] Initializing with preferences:", {
+        fontSize,
+        fontFamily,
+        isDarkTheme,
+      });
+
+      initializeWithPreferences({
+        fontSize,
+        fontFamily,
+        isDarkTheme,
+      });
+
+      // Set flag to prevent duplicate font applications
+      setScrollManagerPreferencesInitialized(true);
+    }
+  }, [
+    readingMode,
+    scrollManagerInitialized,
+    preferencesLoaded,
+    initializeWithPreferences,
+    // Note: fontSize, fontFamily, isDarkTheme removed from deps to prevent re-initialization
   ]);
 
   // Listen for new views being rendered and apply fonts to them
@@ -1545,17 +1630,38 @@ function EpubReader() {
     ) {
       console.log("[FONT] Debouncing font application in scrolled mode");
       fontApplicationTimeoutRef.current = setTimeout(() => {
-        applyFontSettingsImmediate();
+        applyFontSettingsImmediate(0, rendition);
       }, fontApplicationDebounceTime);
       return;
     }
 
-    // Apply immediately
-    applyFontSettingsImmediate();
-  }, [readingMode, fontFamily, isNavigatingToChapter, initialFontLoadComplete]);
+    // Apply immediately with current rendition
+    applyFontSettingsImmediate(0, rendition);
+  }, [
+    readingMode,
+    fontFamily,
+    isNavigatingToChapter,
+    initialFontLoadComplete,
+    rendition,
+    fontSize,
+  ]);
 
   // Apply font settings to all elements (immediate version)
-  const applyFontSettingsImmediate = () => {
+  const applyFontSettingsImmediate = (
+    retryCount = 0,
+    currentRendition = null
+  ) => {
+    // Use passed rendition or fall back to current rendition
+    const activeRendition = currentRendition || rendition;
+
+    console.log("[FONT DEBUG] applyFontSettingsImmediate called with:", {
+      retryCount,
+      currentRendition: !!currentRendition,
+      fallbackRendition: !!rendition,
+      activeRendition: !!activeRendition,
+      activeRenditionType: typeof activeRendition,
+      hasThemes: !!(activeRendition && activeRendition.themes),
+    });
     if (readingMode === "scrolled") {
       // Use custom scroll manager for font settings
       if (scrollApplyFontSettings) {
@@ -1565,30 +1671,63 @@ function EpubReader() {
           scrollApplyFontSettings: !!scrollApplyFontSettings,
         });
         scrollApplyFontSettings(fontSize, fontFamily);
+        console.log("[FONT] Scroll manager font settings applied");
       } else {
         console.log("[FONT] Scroll manager not available for font settings");
       }
       return;
     }
 
-    if (!rendition || isUpdatingReadingMode) {
+    // Check rendition availability based on reading mode
+    if (
+      readingMode === "paginated" &&
+      (!activeRendition || !activeRendition.themes)
+    ) {
       console.log(
-        "Cannot apply font settings - rendition not available or mode updating"
+        "Cannot apply font settings - rendition not available for paginated mode",
+        {
+          rendition: !!activeRendition,
+          renditionType: typeof activeRendition,
+          hasThemes: !!(activeRendition && activeRendition.themes),
+          isUpdatingReadingMode,
+          readingMode,
+          retryCount,
+        }
       );
+
+      // Retry up to 3 times with increasing delays
+      if (retryCount < 3) {
+        const delay = (retryCount + 1) * 200; // 200ms, 400ms, 600ms
+        console.log(
+          `[FONT] Retrying font application in ${delay}ms (attempt ${
+            retryCount + 1
+          }/3)`
+        );
+        setTimeout(() => {
+          applyFontSettingsImmediate(retryCount + 1, activeRendition);
+        }, delay);
+      }
       return;
     }
 
-    // Additional check to ensure rendition is properly initialized
-    try {
-      if (!rendition.manager || !rendition.manager.views) {
-        console.log(
-          "Cannot apply font settings - rendition not fully initialized"
-        );
+    if (isUpdatingReadingMode) {
+      console.log("Cannot apply font settings - reading mode is being updated");
+      return;
+    }
+
+    // Additional check to ensure rendition is properly initialized for paginated mode
+    if (readingMode === "paginated") {
+      try {
+        if (!activeRendition.manager || !activeRendition.manager.views) {
+          console.log(
+            "Cannot apply font settings - rendition not fully initialized for paginated mode"
+          );
+          return;
+        }
+      } catch (error) {
+        console.log("Cannot apply font settings - rendition error:", error);
         return;
       }
-    } catch (error) {
-      console.log("Cannot apply font settings - rendition error:", error);
-      return;
     }
 
     // Update last application time
@@ -1598,7 +1737,8 @@ function EpubReader() {
       "[FONT] Applying font settings for:",
       fontFamily,
       "- Reading Mode:",
-      readingMode
+      readingMode,
+      retryCount > 0 ? `(retry attempt ${retryCount})` : "(initial attempt)"
     );
 
     // Store scroll position before applying fonts in scrolled mode
@@ -1617,84 +1757,117 @@ function EpubReader() {
       });
     }
 
-    // First inject font definitions
-    injectFontDefinitions(rendition);
-
+    // Use proper ePub.js themes API for paginated mode
     const fontWithFallback = getFontWithFallback(fontFamily);
     console.log("[FONT] Font with fallback:", fontWithFallback);
 
-    // Get all iframes in the rendition
-    const iframes = rendition.manager.views._views;
+    // Calculate font size based on user preference (matching scrolled mode)
+    const baseFontSize = window.innerWidth <= 768 ? 24 : 28; // Base size in px (same as scrolled mode)
+    const calculatedFontSize = `${baseFontSize * fontSize}px`;
 
-    iframes.forEach((view, index) => {
-      if (view && view.iframe && view.iframe.contentDocument) {
-        const doc = view.iframe.contentDocument;
+    console.log("[PAGINATED FONT] Applying font settings via themes API:", {
+      fontSize,
+      baseFontSize,
+      calculatedFontSize,
+      fontFamily: fontWithFallback,
+      screenWidth: window.innerWidth,
+    });
 
-        // Remove any existing font override style
-        const existingStyle = doc.getElementById("font-override-style");
-        if (existingStyle) {
-          existingStyle.remove();
+    // Apply styles using ePub.js themes API (proper method for paginated mode)
+    try {
+      console.log(
+        "[PAGINATED FONT] Applying themes with rendition:",
+        !!activeRendition,
+        "themes:",
+        !!activeRendition?.themes
+      );
+
+      // Double-check themes availability
+      if (!activeRendition || !activeRendition.themes) {
+        throw new Error("Themes API not available");
+      }
+
+      activeRendition.themes.default({
+        body: {
+          "font-family": `${fontWithFallback} !important`,
+          "font-size": `${calculatedFontSize} !important`,
+          "line-height": "1.7 !important",
+          "text-align": "justify !important",
+          hyphens: "auto !important",
+          "word-spacing": "0.1em !important",
+        },
+        p: {
+          "font-family": `${fontWithFallback} !important`,
+          "font-size": `${calculatedFontSize} !important`,
+          "line-height": "1.7 !important",
+          margin: "0 0 1.5em 0 !important",
+          "text-indent": "1.5em !important",
+        },
+        "h1, h2, h3, h4, h5, h6": {
+          "font-family": `${fontWithFallback} !important`,
+          "line-height": "1.4 !important",
+          margin: "1.5em 0 1em 0 !important",
+        },
+        h1: {
+          "font-size": `${baseFontSize * fontSize * 1.8}px !important`,
+        },
+        h2: {
+          "font-size": `${baseFontSize * fontSize * 1.5}px !important`,
+        },
+        h3: {
+          "font-size": `${baseFontSize * fontSize * 1.3}px !important`,
+        },
+        "h4, h5, h6": {
+          "font-size": `${calculatedFontSize} !important`,
+        },
+        "*": {
+          "font-family": `${fontWithFallback} !important`,
+        },
+      });
+
+      console.log("[PAGINATED FONT] Themes applied successfully");
+    } catch (error) {
+      console.error("[PAGINATED FONT] Error applying themes:", error);
+
+      // Fallback to direct iframe injection if themes API fails
+      console.log("[PAGINATED FONT] Falling back to direct iframe injection");
+      const iframes = activeRendition.manager.views._views;
+
+      iframes.forEach((view, index) => {
+        if (view && view.iframe && view.iframe.contentDocument) {
+          const doc = view.iframe.contentDocument;
+
+          // Remove any existing font override style
+          const existingStyle = doc.getElementById("font-override-style");
+          if (existingStyle) {
+            existingStyle.remove();
+          }
+
+          // Create new style element with font override
+          const style = doc.createElement("style");
+          style.id = "font-override-style";
+          style.textContent = `
+            body { font-family: ${fontWithFallback} !important; font-size: ${calculatedFontSize} !important; line-height: 1.7 !important; }
+            p { font-family: ${fontWithFallback} !important; font-size: ${calculatedFontSize} !important; line-height: 1.7 !important; margin: 0 0 1.5em 0 !important; text-indent: 1.5em !important; }
+            h1, h2, h3, h4, h5, h6 { font-family: ${fontWithFallback} !important; line-height: 1.4 !important; margin: 1.5em 0 1em 0 !important; }
+            * { font-family: ${fontWithFallback} !important; }
+          `;
+
+          if (doc.head) {
+            doc.head.appendChild(style);
+            console.log(
+              `[FONT] Fallback font style injected into iframe ${index}`
+            );
+          }
         }
+      });
+    }
 
-        // Create new style element with font override
-        const style = doc.createElement("style");
-        style.id = "font-override-style";
-
-        // Calculate font size based on user preference
-        const baseFontSize = 18; // Base size in px
-        const calculatedFontSize = `${baseFontSize * fontSize}px`;
-
-        style.textContent = `
-          /* High specificity overrides for global font styles */
-          html *, html body *, body *, div *, p *, span *, 
-          h1 *, h2 *, h3 *, h4 *, h5 *, h6 * {
-            font-family: ${fontWithFallback} !important;
-          }
-          
-          /* Main content styling */
-          body {
-            font-family: ${fontWithFallback} !important;
-            font-size: ${calculatedFontSize} !important;
-            line-height: 1.7 !important;
-            text-align: justify !important;
-            hyphens: auto !important;
-            word-spacing: 0.1em !important;
-          }
-          
-          /* Paragraph styling */
-          p {
-            font-family: ${fontWithFallback} !important;
-            font-size: ${calculatedFontSize} !important;
-            line-height: 1.7 !important;
-            margin: 0 0 1.5em 0 !important;
-            text-indent: 1.5em !important;
-          }
-          
-          /* Heading styling */
-          h1, h2, h3, h4, h5, h6 {
-            font-family: ${fontWithFallback} !important;
-            line-height: 1.4 !important;
-            margin: 1.5em 0 1em 0 !important;
-          }
-          
-          /* Override any global font declarations */
-          * {
-            font-family: ${fontWithFallback} !important;
-          }
-        `;
-
-        // Inject the style into the iframe head
-        if (doc.head) {
-          doc.head.appendChild(style);
-          console.log(`[FONT] Font style injected into iframe ${index}`);
-        }
-
-        // Restore scroll position in scrolled mode (but not during chapter navigation)
-        if (
-          readingMode === "scrolled" &&
-          scrollPositions[index] !== undefined &&
-          !isNavigatingToChapter
-        ) {
+    // Restore scroll positions in scrolled mode (but not during chapter navigation)
+    if (readingMode === "scrolled" && !isNavigatingToChapter) {
+      const iframes = rendition.manager.views._views;
+      iframes.forEach((view, index) => {
+        if (view && view.iframe && scrollPositions[index] !== undefined) {
           // Use multiple attempts to restore scroll position for better reliability
           const restoreScrollPosition = (attempt = 1) => {
             if (view.iframe && view.iframe.contentWindow) {
@@ -1732,11 +1905,11 @@ function EpubReader() {
             `[FONT] Skipping scroll position restoration during chapter navigation for view ${index}`
           );
         }
-      }
-    });
+      });
+    }
 
     console.log(
-      "[FONT] Font settings applied successfully via direct CSS injection"
+      "[FONT] Font settings applied successfully via ePub.js themes API"
     );
   };
 
@@ -2650,14 +2823,46 @@ function EpubReader() {
     console.log(
       "[FONT SIZE] Updating font size to:",
       newSize,
+      "Type:",
+      typeof newSize,
       "Current reading mode:",
       readingMode
     );
-    setFontSize(newSize);
+
+    // Ensure we're storing a numeric value
+    const numericSize =
+      typeof newSize === "string" && newSize.includes("px")
+        ? parseFloat(newSize) / 40 // Convert px back to multiplier if needed
+        : newSize;
+
+    console.log(
+      "[FONT SIZE] Normalized font size:",
+      numericSize,
+      "Type:",
+      typeof numericSize
+    );
+
+    // Prevent duplicate calls with the same value
+    if (fontSize === numericSize) {
+      console.log(
+        "[FONT SIZE] Skipping update - same value as current:",
+        numericSize
+      );
+      return;
+    }
+    setFontSize(numericSize);
+
+    // Apply font size immediately in scrolled mode
+    if (readingMode === "scrolled" && scrollApplyFontSettings) {
+      console.log(
+        "[FONT SIZE] Applying font size immediately in scrolled mode"
+      );
+      scrollApplyFontSettings(numericSize, fontFamily);
+    }
 
     // Save to IndexedDB
     try {
-      await userPreferencesDB.setFontSize(newSize);
+      await userPreferencesDB.setFontSize(numericSize);
     } catch (error) {
       console.error("Error saving font size setting:", error);
     }
@@ -2856,6 +3061,7 @@ function EpubReader() {
     );
     setIsUpdatingReadingMode(true);
     setIsNavigatingToChapter(true); // Prevent scroll restoration during mode switch
+    setScrollManagerPreferencesInitialized(false); // Reset flag for new mode
 
     // Save to IndexedDB
     try {

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Drawer,
   DrawerClose,
@@ -37,7 +37,9 @@ export const EpubReaderSettings = ({
   // Sync font slider with current font size
   useEffect(() => {
     if (fontSize) {
-      const sizeValue = parseInt(fontSize) / 40; // Convert px to slider value
+      // fontSize is now a numeric multiplier, use it directly
+      const sizeValue =
+        typeof fontSize === "number" ? fontSize : parseFloat(fontSize);
       setFontSlider(Math.max(0.5, Math.min(1, sizeValue)));
     }
   }, [fontSize]);
@@ -53,12 +55,16 @@ export const EpubReaderSettings = ({
   };
 
   // Handle the onChange event to update the slider value
-  const handleSliderChange = (value) => {
-    setFontSlider(value);
-    const newSize = `${value * 40}px`;
-    updateFontSize(newSize);
-    redrawAnnotations();
-  };
+  const handleSliderChange = useCallback(
+    (value) => {
+      console.log("[SETTINGS] Slider changed to:", value);
+      setFontSlider(value);
+      // Pass the numeric multiplier value, not pixels
+      updateFontSize(value);
+      redrawAnnotations();
+    },
+    [updateFontSize, redrawAnnotations]
+  );
 
   // Function to handle font selection
   const handleFontSelect = (fontName) => {

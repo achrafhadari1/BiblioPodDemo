@@ -21,7 +21,12 @@ import { ReaderMenu } from "../Modals/ReaderMenu";
 import { flatten } from "../Modals/getChapters";
 import { EpubReaderSettings } from "../EpubReaderComponents/EpubReaderSettings";
 import ReadingProgress from "../EpubReaderComponents/ReadingProgress";
-import { userPreferencesDB } from "../../utils/userPreferences";
+import {
+  userPreferencesDB,
+  loadReadingProgress,
+  saveReadingProgress,
+} from "../../utils/userPreferences";
+import { useCustomScrollManager } from "../EpubReaderComponents/CustomScrollManager";
 
 // Utility function to detect mobile devices
 const isMobileDevice = () => {
@@ -67,6 +72,8 @@ function EpubReader() {
   const [isDarkClicked, setisDarkClicked] = useState(0);
   const [currentChapter, setCurrentChapter] = useState("");
   const [progressFetched, setProgressFetched] = useState(false);
+  const [savedProgressData, setSavedProgressData] = useState(null);
+  const [componentMounted, setComponentMounted] = useState(false);
   const [locationsGenerated, setLocationsGenerated] = useState(false);
   const [isInitialNavigation, setIsInitialNavigation] = useState(false);
   const [isBookLoading, setIsBookLoading] = useState(false);
@@ -105,6 +112,85 @@ function EpubReader() {
   const lastFontApplicationRef = useRef(0);
   const fontApplicationDebounceTime = 300; // ms
 
+  // Custom scroll manager hook - only used when readingMode is "scrolled"
+  const {
+    manager: scrollManager,
+    currentLocation: scrollCurrentLocation,
+    readingProgress: scrollReadingProgress,
+    isInitialized: scrollManagerInitialized,
+    navigateToSection,
+    navigateToHref,
+    next: scrollNext,
+    prev: scrollPrev,
+    applyTheme: scrollApplyTheme,
+    applyFontSettings: scrollApplyFontSettings,
+    setSavedProgress,
+    restoreProgress,
+    initializeWithPreferences,
+  } = useCustomScrollManager(
+    componentMounted && progressFetched && readingMode === "scrolled"
+      ? book
+      : null,
+    readingMode === "scrolled" ? rendition : null,
+    {
+      preloadCount: 1,
+      sectionGap: 0,
+      smoothScrolling: true,
+      viewerRef: viewerRef,
+      savedProgress: savedProgressData,
+    }
+  );
+
+  // Component mounted effect
+  useEffect(() => {
+    console.log("[EpubReader] Component mounting...");
+    setComponentMounted(true);
+    return () => setComponentMounted(false);
+  }, []);
+
+  // Fetch reading progress first, before loading the book
+  useEffect(() => {
+    const fetchReadingProgress = async () => {
+      if (!bookValue) {
+        console.log("[PROGRESS] No bookValue, skipping progress fetch");
+        setProgressFetched(true);
+        return;
+      }
+
+      try {
+        setLoadingMessage("Loading reading progress...");
+        console.log("[PROGRESS] Fetching progress for bookValue:", bookValue);
+
+        const savedProgress = await loadReadingProgress(bookValue);
+        console.log("[PROGRESS] Loaded progress from storage:", savedProgress);
+
+        if (savedProgress && savedProgress.location) {
+          console.log("[PROGRESS] Valid progress found, storing for later use");
+          setSavedProgressData(savedProgress);
+          setLoadingMessage("Reading progress loaded");
+        } else {
+          console.log(
+            "[PROGRESS] No valid progress found, starting from beginning"
+          );
+          setSavedProgressData(null);
+          setLoadingMessage("Starting from beginning");
+        }
+      } catch (error) {
+        console.error("[PROGRESS] Error loading saved progress:", error);
+        setSavedProgressData(null);
+        setLoadingMessage("Starting from beginning");
+      } finally {
+        setProgressFetched(true);
+      }
+    };
+
+    if (bookValue) {
+      fetchReadingProgress();
+    } else {
+      setProgressFetched(true);
+    }
+  }, [bookValue]);
+
   // Detect mobile device on mount and window resize
   useEffect(() => {
     const checkMobile = () => {
@@ -125,6 +211,31 @@ function EpubReader() {
     setForceUpdate({});
   }, [readingMode]);
 
+  // Update current chapter when scroll manager location changes
+  useEffect(() => {
+    if (readingMode === "scrolled" && scrollCurrentLocation && book) {
+      console.log(
+        "[CHAPTER] Updating chapter from scroll manager location:",
+        scrollCurrentLocation
+      );
+      updateCurrentChapter(scrollCurrentLocation, book);
+    }
+  }, [scrollCurrentLocation, book, readingMode]);
+
+  // Update current percentage when scroll manager progress changes
+  useEffect(() => {
+    if (
+      readingMode === "scrolled" &&
+      typeof scrollReadingProgress === "number"
+    ) {
+      console.log(
+        "[PROGRESS] Updating percentage from scroll manager:",
+        scrollReadingProgress
+      );
+      setCurrentPercentage(Math.round(scrollReadingProgress));
+    }
+  }, [scrollReadingProgress, readingMode]);
+
   // Helper function to reset swipe state
   const resetSwipeState = useCallback(() => {
     isSwipingRef.current = false;
@@ -135,36 +246,34 @@ function EpubReader() {
 
   // Navigation functions (defined first to avoid dependency issues)
   const nextBtn = useCallback(() => {
-    if (!rendition) return;
-
     if (readingMode === "scrolled") {
-      // In scrolled mode, scroll down by viewport height
-      const iframe = rendition.getContents()[0];
-      if (iframe && iframe.window) {
-        iframe.window.scrollBy(0, iframe.window.innerHeight * 0.8);
+      // Use custom scroll manager for scrolled mode
+      if (scrollNext) {
+        scrollNext();
       }
     } else {
       // In paginated mode, go to next page
-      rendition.next();
-      updatePageInfo(rendition, book);
+      if (rendition) {
+        rendition.next();
+        updatePageInfo(rendition, book);
+      }
     }
-  }, [rendition, book, readingMode]);
+  }, [rendition, book, readingMode, scrollNext]);
 
   const backBtn = useCallback(() => {
-    if (!rendition) return;
-
     if (readingMode === "scrolled") {
-      // In scrolled mode, scroll up by viewport height
-      const iframe = rendition.getContents()[0];
-      if (iframe && iframe.window) {
-        iframe.window.scrollBy(0, -iframe.window.innerHeight * 0.8);
+      // Use custom scroll manager for scrolled mode
+      if (scrollPrev) {
+        scrollPrev();
       }
     } else {
       // In paginated mode, go to previous page
-      rendition.prev();
-      updatePageInfo(rendition, book);
+      if (rendition) {
+        rendition.prev();
+        updatePageInfo(rendition, book);
+      }
     }
-  }, [rendition, book, readingMode]);
+  }, [rendition, book, readingMode, scrollPrev]);
 
   // Double-tap detection for mobile hover
   const handleDoubleTap = useCallback((e) => {
@@ -996,7 +1105,14 @@ function EpubReader() {
 
   // Apply theme changes
   useEffect(() => {
-    if (rendition && rendition.themes && preferencesLoaded) {
+    if (readingMode === "scrolled") {
+      // Use custom scroll manager for theme
+      if (scrollApplyTheme && preferencesLoaded) {
+        console.log("[THEME] Applying theme via scroll manager:", isDarkTheme);
+        scrollApplyTheme(isDarkTheme);
+      }
+    } else if (rendition && rendition.themes && preferencesLoaded) {
+      // Use regular rendition for theme
       if (isDarkTheme) {
         if (isDarkClicked > 0) {
           rendition.themes.override("transition", "0.3s ease-in-out");
@@ -1011,7 +1127,14 @@ function EpubReader() {
         rendition.themes.override("color", "black");
       }
     }
-  }, [isDarkTheme, isDarkClicked, rendition, preferencesLoaded]);
+  }, [
+    isDarkTheme,
+    isDarkClicked,
+    rendition,
+    preferencesLoaded,
+    readingMode,
+    scrollApplyTheme,
+  ]);
 
   // Apply font size changes
   useEffect(() => {
@@ -1359,6 +1482,17 @@ function EpubReader() {
 
   // Apply font settings to all elements (immediate version)
   const applyFontSettingsImmediate = () => {
+    if (readingMode === "scrolled") {
+      // Use custom scroll manager for font settings
+      if (scrollApplyFontSettings) {
+        console.log("[FONT] Applying font settings via scroll manager");
+        scrollApplyFontSettings(fontSize, fontFamily);
+      } else {
+        console.log("[FONT] Scroll manager not available for font settings");
+      }
+      return;
+    }
+
     if (!rendition) {
       console.log("Cannot apply font settings - rendition not available");
       return;
@@ -1542,23 +1676,25 @@ function EpubReader() {
     }
 
     try {
+      // In scrolled mode, don't create a rendition - let the custom scroll manager handle everything
+      if (readingMode === "scrolled") {
+        console.log(
+          "[DEBUG] Scrolled mode detected - skipping rendition creation, custom scroll manager will handle rendering"
+        );
+        setBook(loadedBook);
+        setLoading(false);
+        return;
+      }
+
       console.log("[DEBUG] Creating rendition with element:", viewerElement);
-      // Configure rendition options based on reading mode
+      // Configure rendition options for paginated mode only
       const renditionOptions = {
         width: `${window.innerWidth}px`,
         height: "90vh",
         ignoreClass: "annotator-hl",
         manager: "default",
+        flow: "paginated",
       };
-
-      // Set flow mode based on reading preference
-      if (readingMode === "scrolled") {
-        renditionOptions.flow = "scrolled";
-        renditionOptions.manager = "continuous";
-      } else {
-        renditionOptions.flow = "paginated";
-        renditionOptions.manager = "default";
-      }
 
       console.log("Creating rendition with options:", renditionOptions);
       const newRendition = loadedBook.renderTo(viewerElement, renditionOptions);
@@ -1567,26 +1703,6 @@ function EpubReader() {
       // Apply global font styles before displaying content
       // First inject font definitions
       injectFontDefinitions(newRendition);
-
-      // Add smooth scrolling for scrolled mode
-      if (readingMode === "scrolled") {
-        newRendition.on("rendered", () => {
-          const iframe = newRendition.getContents()[0];
-          if (iframe && iframe.document) {
-            const style = iframe.document.createElement("style");
-            style.textContent = `
-              html {
-                scroll-behavior: smooth;
-              }
-              body {
-                overflow-x: hidden;
-                overflow-y: auto;
-              }
-            `;
-            iframe.document.head.appendChild(style);
-          }
-        });
-      }
 
       const fontWithFallback = getFontWithFallback(fontFamily);
 
@@ -2234,33 +2350,47 @@ function EpubReader() {
 
   // Save reading progress
   const saveReadingProgress = async (syncToDatabase = false) => {
-    if (!rendition || !bookData) return;
+    if (!bookData) return;
 
     try {
-      // Guard against invalid location data
-      if (
-        !rendition.location ||
-        !rendition.location.start ||
-        !rendition.location.start.cfi
-      ) {
-        console.log(
-          `[DEBUG] Cannot save progress - invalid location data:`,
-          rendition.location
+      let newCFI, newPercentage;
+
+      if (readingMode === "scrolled" && scrollCurrentLocation) {
+        // Use scroll manager location
+        console.log("[PROGRESS] Saving progress from scroll manager");
+        newCFI = scrollCurrentLocation.start?.cfi || scrollCurrentLocation.cfi;
+        newPercentage = Math.round(scrollReadingProgress);
+      } else if (rendition) {
+        // Use regular rendition location
+        console.log("[PROGRESS] Saving progress from rendition");
+
+        // Guard against invalid location data
+        if (
+          !rendition.location ||
+          !rendition.location.start ||
+          !rendition.location.start.cfi
+        ) {
+          console.log(
+            `[DEBUG] Cannot save progress - invalid location data:`,
+            rendition.location
+          );
+          return;
+        }
+
+        newCFI = rendition.location.start.cfi;
+        newPercentage = Math.round(
+          rendition.book.locations.percentageFromCfi(newCFI) * 100
         );
+      } else {
+        console.log("[PROGRESS] No valid location source available");
         return;
       }
-
-      const newCFI = rendition.location.start.cfi;
 
       // Guard against invalid CFI
       if (!newCFI || newCFI === "undefined") {
         console.log(`[DEBUG] Cannot save progress - invalid CFI:`, newCFI);
         return;
       }
-
-      const newPercentage = Math.round(
-        rendition.book.locations.percentageFromCfi(newCFI) * 100
-      );
 
       console.log(
         `[DEBUG] Saving progress for ${
@@ -2507,7 +2637,6 @@ function EpubReader() {
     );
     setIsUpdatingReadingMode(true);
     setIsNavigatingToChapter(true); // Prevent scroll restoration during mode switch
-    setReadingMode(newMode);
 
     // Save to IndexedDB
     try {
@@ -2516,23 +2645,44 @@ function EpubReader() {
       console.error("Error saving reading mode setting:", error);
     }
 
-    // Recreate rendition with new flow mode if book is loaded
-    if (book && viewerRef.current && rendition) {
-      console.log("Recreating rendition with new reading mode:", newMode);
-
-      // Store current location before destroying rendition
-      let currentLocation = null;
-      try {
+    // Store current location before switching modes
+    let currentLocation = null;
+    try {
+      if (readingMode === "scrolled" && scrollCurrentLocation) {
+        // Get location from scroll manager
+        currentLocation = scrollCurrentLocation;
+        console.log(
+          "[READING_MODE] Got location from scroll manager:",
+          currentLocation
+        );
+      } else if (rendition) {
+        // Get location from regular rendition
         currentLocation = rendition.currentLocation();
-      } catch (error) {
-        console.warn("Could not get current location:", error);
+        console.log(
+          "[READING_MODE] Got location from rendition:",
+          currentLocation
+        );
       }
+    } catch (error) {
+      console.warn("Could not get current location:", error);
+    }
 
-      // Destroy current rendition
-      try {
-        rendition.destroy();
-      } catch (error) {
-        console.warn("Error destroying rendition:", error);
+    // Update the reading mode state - this will trigger the custom scroll manager hook
+    setReadingMode(newMode);
+
+    // If switching to paginated mode, we need to recreate the rendition
+    if (newMode === "paginated" && book && viewerRef.current) {
+      console.log(
+        "[READING_MODE] Switching to paginated mode, recreating rendition"
+      );
+
+      // Destroy current rendition if it exists
+      if (rendition) {
+        try {
+          rendition.destroy();
+        } catch (error) {
+          console.warn("Error destroying rendition:", error);
+        }
       }
 
       // Clear the viewer element
@@ -2541,50 +2691,25 @@ function EpubReader() {
         viewerElement.innerHTML = "";
       }
 
-      // Create new rendition with updated reading mode
+      // Create new paginated rendition
       try {
-        // Configure rendition options based on reading mode
+        // Configure rendition options for paginated mode
         const renditionOptions = {
           width: `${window.innerWidth}px`,
           height: "90vh",
           ignoreClass: "annotator-hl",
           manager: "default",
+          flow: "paginated",
         };
 
-        // Set flow mode based on reading preference
-        if (newMode === "scrolled") {
-          renditionOptions.flow = "scrolled";
-          renditionOptions.manager = "continuous";
-        } else {
-          renditionOptions.flow = "paginated";
-          renditionOptions.manager = "default";
-        }
-
-        console.log("Creating new rendition with options:", renditionOptions);
+        console.log(
+          "[READING_MODE] Creating new paginated rendition with options:",
+          renditionOptions
+        );
         const newRendition = book.renderTo(viewerElement, renditionOptions);
 
         // Apply font styles
         injectFontDefinitions(newRendition);
-
-        // Add smooth scrolling for scrolled mode
-        if (newMode === "scrolled") {
-          newRendition.on("rendered", () => {
-            const iframe = newRendition.getContents()[0];
-            if (iframe && iframe.document) {
-              const style = iframe.document.createElement("style");
-              style.textContent = `
-                html {
-                  scroll-behavior: smooth;
-                }
-                body {
-                  overflow-x: hidden;
-                  overflow-y: auto;
-                }
-              `;
-              iframe.document.head.appendChild(style);
-            }
-          });
-        }
 
         // Apply theme and font styles
         const fontWithFallback = getFontWithFallback(fontFamily);
@@ -2598,57 +2723,20 @@ function EpubReader() {
           },
         });
 
-        // Display the book at the appropriate location
-        let locationToDisplay;
-        if (newMode === "scrolled") {
-          // In scrolled mode, go to the beginning of the current chapter
-          if (currentLocation?.start?.href) {
-            const currentHref = currentLocation.start.href;
-            const item = book.spine.get(currentHref);
-            if (item) {
-              await item.load(book.load.bind(book));
-              const firstElement =
-                item.document.body.firstElementChild || item.document.body;
-              locationToDisplay = item.cfiFromElement(firstElement);
-              console.log(
-                "[READING_MODE] Using chapter beginning CFI for scrolled mode:",
-                locationToDisplay
-              );
-            }
-          }
-        } else {
-          // In paginated mode, use the exact previous location
-          locationToDisplay =
-            currentLocation?.start?.cfi || currentCFI || book.locations?.start;
-        }
-
         console.log(
           "[READING_MODE] About to display book at location:",
           locationToDisplay,
-          "- Mode:",
-          newMode
+          "- Mode: paginated"
         );
+
         if (locationToDisplay) {
           await newRendition.display(locationToDisplay);
         } else {
           await newRendition.display();
         }
 
-        // Force scroll to top if switching to scrolled mode
-        if (newMode === "scrolled") {
-          setTimeout(() => {
-            const iframe = newRendition.getContents()[0];
-            if (iframe && iframe.window) {
-              iframe.window.scrollTo(0, 0);
-              console.log(
-                "[READING_MODE] Forced scroll to top after switching to scrolled mode"
-              );
-            }
-          }, 200);
-        }
         console.log(
-          "[READING_MODE] Book displayed successfully in mode:",
-          newMode
+          "[READING_MODE] Book displayed successfully in paginated mode"
         );
 
         // Set up event listeners
@@ -2660,10 +2748,7 @@ function EpubReader() {
         // Ensure proper sizing after mode change
         setTimeout(() => {
           newRendition.resize(`${window.innerWidth}px`, "90vh");
-          // Only update page info in paginated mode
-          if (newMode === "paginated") {
-            updatePageInfo(newRendition, book);
-          }
+          updatePageInfo(newRendition, book);
           // Reset the updating flags after everything is complete
           setIsUpdatingReadingMode(false);
           setIsNavigatingToChapter(false);
@@ -2673,7 +2758,35 @@ function EpubReader() {
       } catch (error) {
         console.error("Error recreating rendition:", error);
         setIsUpdatingReadingMode(false);
+        setIsNavigatingToChapter(false);
       }
+    } else if (newMode === "scrolled") {
+      // When switching to scrolled mode, the custom scroll manager hook will handle everything
+      console.log(
+        "[READING_MODE] Switching to scrolled mode - custom scroll manager will handle initialization"
+      );
+
+      // Clear the viewer element for the custom scroll manager
+      const viewerElement = viewerRef.current;
+      if (viewerElement) {
+        viewerElement.innerHTML = "";
+      }
+
+      // Destroy current rendition if it exists
+      if (rendition) {
+        try {
+          rendition.destroy();
+        } catch (error) {
+          console.warn("Error destroying rendition:", error);
+        }
+        setRendition(null);
+      }
+
+      // Reset flags after a delay to allow the scroll manager to initialize
+      setTimeout(() => {
+        setIsUpdatingReadingMode(false);
+        setIsNavigatingToChapter(false);
+      }, 1000);
     }
   };
 
@@ -2692,12 +2805,18 @@ function EpubReader() {
 
   // Show loading overlay instead of blocking entire component render
   const showLoadingOverlay =
-    loading || !preferencesLoaded || !initialFontLoadComplete;
+    loading ||
+    !preferencesLoaded ||
+    !initialFontLoadComplete ||
+    (readingMode === "scrolled" && !scrollManagerInitialized);
+
   let loadingOverlayMessage = loadingMessage;
   if (!preferencesLoaded) {
     loadingOverlayMessage = "Loading preferences...";
   } else if (!initialFontLoadComplete) {
     loadingOverlayMessage = "Loading fonts...";
+  } else if (readingMode === "scrolled" && !scrollManagerInitialized) {
+    loadingOverlayMessage = "Initializing scroll reader...";
   }
 
   // Error state - book not found
@@ -2750,6 +2869,7 @@ function EpubReader() {
             currentCFI={currentCFI}
             currentChapter={currentChapter}
             setIsNavigatingToChapter={setIsNavigatingToChapter}
+            onChapterSelect={readingMode === "scrolled" ? navigateToHref : null}
           />
         </div>
 
@@ -2771,6 +2891,9 @@ function EpubReader() {
               currentCFI={currentCFI}
               currentChapter={currentChapter}
               setIsNavigatingToChapter={setIsNavigatingToChapter}
+              onChapterSelect={
+                readingMode === "scrolled" ? navigateToHref : null
+              }
             />
           </div>
 

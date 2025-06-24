@@ -51,6 +51,8 @@ function EpubReaderCustom() {
   const searchParams = useSearchParams();
   const bookValue = searchParams.get("book");
 
+  console.log("[EpubReaderCustom] bookValue from URL:", bookValue);
+
   // State variables
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [fontSize, setFontSize] = useState(DEFAULT_SETTINGS.fontSize);
@@ -68,6 +70,7 @@ function EpubReaderCustom() {
   const [showTitleBar, setShowTitleBar] = useState(true);
   const [currentChapter, setCurrentChapter] = useState("");
   const [progressFetched, setProgressFetched] = useState(false);
+  const [savedProgressData, setSavedProgressData] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
   const [currentPercentage, setCurrentPercentage] = useState(0);
   const [showReadingProgress, setShowReadingProgress] = useState(false);
@@ -108,12 +111,17 @@ function EpubReaderCustom() {
     setSavedProgress,
     restoreProgress,
     initializeWithPreferences,
-  } = useCustomScrollManager(componentMounted ? book : null, rendition, {
-    preloadCount: 1, // Load one section ahead/behind like epubjs
-    sectionGap: 0, // No gaps between sections
-    smoothScrolling: true,
-    viewerRef: viewerRef, // Pass the ref to the hook
-  });
+  } = useCustomScrollManager(
+    componentMounted && progressFetched ? book : null,
+    rendition,
+    {
+      preloadCount: 1, // Load one section ahead/behind like epubjs
+      sectionGap: 0, // No gaps between sections
+      smoothScrolling: true,
+      viewerRef: viewerRef, // Pass the ref to the hook
+      savedProgress: savedProgressData, // Pass saved progress to the hook
+    }
+  );
 
   // Component mounted effect
   useEffect(() => {
@@ -135,6 +143,49 @@ function EpubReaderCustom() {
     return () => setComponentMounted(false);
   }, []);
 
+  // Fetch reading progress first, before loading the book
+  useEffect(() => {
+    const fetchReadingProgress = async () => {
+      if (!bookValue) {
+        console.log("[PROGRESS] No bookValue, skipping progress fetch");
+        setProgressFetched(true);
+        return;
+      }
+
+      try {
+        setLoadingMessage("Loading reading progress...");
+        console.log("[PROGRESS] Fetching progress for bookValue:", bookValue);
+
+        const savedProgress = await loadReadingProgress(bookValue);
+        console.log("[PROGRESS] Loaded progress from storage:", savedProgress);
+
+        if (savedProgress && savedProgress.location) {
+          console.log("[PROGRESS] Valid progress found, storing for later use");
+          setSavedProgressData(savedProgress);
+          setLoadingMessage("Reading progress loaded");
+        } else {
+          console.log(
+            "[PROGRESS] No valid progress found, starting from beginning"
+          );
+          setSavedProgressData(null);
+          setLoadingMessage("Starting from beginning");
+        }
+      } catch (error) {
+        console.error("[PROGRESS] Error loading saved progress:", error);
+        setSavedProgressData(null);
+        setLoadingMessage("Starting from beginning");
+      } finally {
+        setProgressFetched(true);
+      }
+    };
+
+    if (bookValue) {
+      fetchReadingProgress();
+    } else {
+      setProgressFetched(true);
+    }
+  }, [bookValue]);
+
   // Detect mobile device on mount and window resize
   useEffect(() => {
     const checkMobile = () => {
@@ -151,6 +202,10 @@ function EpubReaderCustom() {
 
   // Update reading progress when custom scroll manager reports changes
   useEffect(() => {
+    console.log(
+      "[PROGRESS] Effect triggered - readingProgress:",
+      readingProgress
+    );
     if (readingProgress !== undefined) {
       setCurrentPercentage(Math.round(readingProgress * 100));
 
@@ -164,20 +219,237 @@ function EpubReaderCustom() {
             window.pageYOffset || document.documentElement.scrollTop,
         };
 
+        console.log("[PROGRESS] Saving progress:", progressData);
         // Save progress using the helper function
         saveReadingProgress(bookValue, progressData).catch((error) => {
           console.error("[PROGRESS] Error saving progress:", error);
         });
+      } else {
+        console.log("[PROGRESS] Not saving - missing data:", {
+          book: !!book,
+          currentLocation: !!currentLocation,
+          readingProgress,
+          bookValue,
+          currentChapter,
+        });
       }
+    } else {
+      console.log("[PROGRESS] readingProgress is undefined, not saving");
     }
   }, [readingProgress, book, currentLocation, currentChapter, bookValue]);
+
+  // Update current chapter helper - improved for custom scroll manager
+  const updateCurrentChapter = useCallback((location, book) => {
+    if (!location || !book) return;
+
+    try {
+      console.log("[CHAPTER] Updating chapter for location:", location);
+
+      // Get the navigation/TOC
+      console.log("[CHAPTER] Starting navigation load...");
+      book.loaded.navigation
+        .then((nav) => {
+          console.log("[CHAPTER] Navigation loaded successfully");
+          console.log("[CHAPTER] Raw navigation:", nav);
+
+          let toc = [];
+          try {
+            // Handle different navigation formats
+            if (Array.isArray(nav)) {
+              toc = flatten(nav);
+            } else if (nav && nav.toc && Array.isArray(nav.toc)) {
+              toc = flatten(nav.toc);
+            } else if (nav && Array.isArray(nav.chapters)) {
+              toc = flatten(nav.chapters);
+            } else if (nav && nav.navigation && Array.isArray(nav.navigation)) {
+              toc = flatten(nav.navigation);
+            } else {
+              console.warn("[CHAPTER] Unexpected navigation format:", nav);
+              toc = [];
+            }
+          } catch (flattenError) {
+            console.error(
+              "[CHAPTER] Error flattening navigation:",
+              flattenError
+            );
+            toc = [];
+          }
+
+          console.log(
+            "[CHAPTER] TOC items:",
+            toc.map((item) => ({ label: item.label, href: item.href }))
+          );
+
+          if (!toc.length) {
+            console.log("[CHAPTER] No TOC available");
+            setCurrentChapter(`Chapter ${(location.index || 0) + 1}`);
+            return;
+          }
+
+          // Get the current href from location
+          const currentHref = location.href || location.start?.href;
+          console.log("[CHAPTER] Current href:", currentHref);
+
+          if (!currentHref) {
+            // If no href, try to find chapter by index
+            const chapterIndex = Math.min(location.index || 0, toc.length - 1);
+            const chapter = toc[chapterIndex];
+            if (chapter) {
+              console.log("[CHAPTER] Found chapter by index:", chapter);
+              setCurrentChapter(
+                chapter.label?.trim() || `Chapter ${chapterIndex + 1}`
+              );
+            } else {
+              setCurrentChapter(`Chapter ${(location.index || 0) + 1}`);
+            }
+            return;
+          }
+
+          // Method 1: Try exact href match
+          let currentChapterItem = toc.find(
+            (item) => item.href === currentHref
+          );
+          console.log(
+            "[CHAPTER] Method 1 - Exact match result:",
+            currentChapterItem
+          );
+
+          if (!currentChapterItem) {
+            // Method 2: Try base href match (without fragment)
+            const baseHref = currentHref.split("#")[0];
+            currentChapterItem = toc.find((item) => {
+              const itemBaseHref = item.href?.split("#")[0];
+              return itemBaseHref === baseHref;
+            });
+            console.log(
+              "[CHAPTER] Method 2 - Base href match result:",
+              currentChapterItem
+            );
+          }
+
+          if (!currentChapterItem) {
+            // Method 3: Try partial href matching
+            currentChapterItem = toc.find((item) => {
+              if (!item.href) return false;
+              return (
+                currentHref.includes(item.href) ||
+                item.href.includes(currentHref)
+              );
+            });
+            console.log(
+              "[CHAPTER] Method 3 - Partial match result:",
+              currentChapterItem
+            );
+          }
+
+          if (!currentChapterItem) {
+            // Method 4: Find the best match by section index
+            // Find the TOC item that corresponds to the current section
+            const spine = book.spine;
+            const currentSpineItem = spine.get(location.index);
+            console.log(
+              "[CHAPTER] Method 4 - Current spine item:",
+              currentSpineItem
+            );
+
+            if (currentSpineItem) {
+              // Look for TOC items that match this spine item
+              currentChapterItem = toc.find((item) => {
+                const itemBaseHref = item.href?.split("#")[0];
+                const spineBaseHref = currentSpineItem.href?.split("#")[0];
+                return itemBaseHref === spineBaseHref;
+              });
+              console.log(
+                "[CHAPTER] Method 4 - Spine match result:",
+                currentChapterItem
+              );
+            }
+          }
+
+          if (!currentChapterItem) {
+            // Method 5: Use the closest chapter by index
+            // Find the chapter that comes before or at the current section
+            let bestMatch = null;
+            let bestIndex = -1;
+
+            for (let i = 0; i < toc.length; i++) {
+              const tocItem = toc[i];
+              if (tocItem.href) {
+                // Try to find the spine index for this TOC item
+                const spine = book.spine;
+                const spineItem = spine.get(tocItem.href);
+                if (spineItem && spineItem.index <= location.index) {
+                  if (spineItem.index > bestIndex) {
+                    bestMatch = tocItem;
+                    bestIndex = spineItem.index;
+                  }
+                }
+              }
+            }
+
+            if (bestMatch) {
+              currentChapterItem = bestMatch;
+              console.log(
+                "[CHAPTER] Found best match by spine index:",
+                currentChapterItem
+              );
+            }
+          }
+
+          if (currentChapterItem) {
+            console.log("[CHAPTER] Found chapter item:", currentChapterItem);
+            const chapterLabel =
+              currentChapterItem.label?.trim() || "Untitled Chapter";
+            console.log("[CHAPTER] Setting chapter to:", chapterLabel);
+            setCurrentChapter(chapterLabel);
+          } else {
+            console.log("[CHAPTER] No matching chapter found, using fallback");
+            // Fallback to a reasonable chapter name
+            const chapterIndex = Math.min(location.index || 0, toc.length - 1);
+            const fallbackChapter = toc[chapterIndex];
+            if (fallbackChapter) {
+              const fallbackLabel =
+                fallbackChapter.label?.trim() || `Chapter ${chapterIndex + 1}`;
+              console.log(
+                "[CHAPTER] Setting fallback chapter to:",
+                fallbackLabel
+              );
+              setCurrentChapter(fallbackLabel);
+            } else {
+              const defaultLabel = `Chapter ${(location.index || 0) + 1}`;
+              console.log(
+                "[CHAPTER] Setting default chapter to:",
+                defaultLabel
+              );
+              setCurrentChapter(defaultLabel);
+            }
+          }
+        })
+        .catch((error) => {
+          console.error("[CHAPTER] Error loading navigation:", error);
+          console.log(
+            "[CHAPTER] Setting fallback chapter due to navigation error"
+          );
+          setCurrentChapter(`Chapter ${(location.index || 0) + 1}`);
+        });
+    } catch (error) {
+      console.error("[CHAPTER] Error updating current chapter:", error);
+      setCurrentChapter(`Chapter ${(location.index || 0) + 1}`);
+    }
+  }, []);
 
   // Update current chapter when location changes
   useEffect(() => {
     if (currentLocation && book) {
+      console.log("[CHAPTER_UPDATE] Location changed, updating chapter:", {
+        index: currentLocation.index,
+        href: currentLocation.href,
+        percentage: currentLocation.percentage,
+        currentChapter: currentChapter,
+      });
       updateCurrentChapter(currentLocation, book);
     }
-  }, [currentLocation, book]);
+  }, [currentLocation, book, updateCurrentChapter]);
 
   // Apply font settings when they change
   useEffect(() => {
@@ -223,15 +495,7 @@ function EpubReaderCustom() {
     isDarkTheme,
   ]);
 
-  // Restore progress when scroll manager is initialized
-  useEffect(() => {
-    if (scrollManagerInitialized && restoreProgress) {
-      console.log(
-        "[EpubReaderCustom] Scroll manager initialized, restoring progress..."
-      );
-      restoreProgress();
-    }
-  }, [scrollManagerInitialized, restoreProgress]);
+  // Progress restoration is now handled automatically in the scroll manager initialization
 
   // Helper function to reset swipe state
   const resetSwipeState = useCallback(() => {
@@ -448,9 +712,18 @@ function EpubReaderCustom() {
     }
   }, [fontSize, fontFamily, scrollManager, applyFontSettings]);
 
-  // Load book
+  // Load book - wait for progress to be fetched first
   useEffect(() => {
-    if (!bookValue || !preferencesLoaded) return;
+    console.log("[BOOK_LOAD] Load book effect triggered", {
+      bookValue: !!bookValue,
+      preferencesLoaded,
+      progressFetched,
+    });
+
+    if (!bookValue || !preferencesLoaded || !progressFetched) {
+      console.log("[BOOK_LOAD] Skipping book load - missing requirements");
+      return;
+    }
 
     const loadBook = async () => {
       try {
@@ -497,19 +770,7 @@ function EpubReaderCustom() {
         console.log("[BOOK_LOAD] Book loaded successfully");
         setBook(loadedBook);
 
-        // Load saved reading progress
-        try {
-          const savedProgress = await loadReadingProgress(bookValue);
-          if (savedProgress && savedProgress.location) {
-            console.log("[PROGRESS] Restoring saved progress:", savedProgress);
-            // Set the saved progress in the scroll manager
-            if (setSavedProgress) {
-              setSavedProgress(savedProgress);
-            }
-          }
-        } catch (error) {
-          console.error("[PROGRESS] Error loading saved progress:", error);
-        }
+        // Progress loading is now handled separately before book loading
 
         // Don't check for viewer element here - let the custom scroll manager handle it
 
@@ -538,7 +799,7 @@ function EpubReaderCustom() {
     };
 
     loadBook();
-  }, [bookValue, preferencesLoaded]);
+  }, [bookValue, preferencesLoaded, progressFetched]);
 
   // Wait for scroll manager to be initialized before hiding loading
   useEffect(() => {
@@ -549,89 +810,6 @@ function EpubReaderCustom() {
       }, 500);
     }
   }, [book, scrollManagerInitialized]);
-
-  // Update current chapter helper
-  const updateCurrentChapter = useCallback((location, book) => {
-    if (!location || !book) return;
-
-    try {
-      console.log("[CHAPTER] Updating chapter for location:", location);
-
-      const spine = book.spine;
-
-      // Try multiple ways to get the current spine item
-      let currentItem = null;
-
-      // Method 1: Try by href
-      if (location.href) {
-        currentItem = spine.get(location.href);
-      }
-
-      // Method 2: Try by index
-      if (!currentItem && typeof location.index === "number") {
-        currentItem = spine.get(location.index);
-      }
-
-      // Method 3: Try by id
-      if (!currentItem && location.id) {
-        currentItem = spine.get(location.id);
-      }
-
-      console.log("[CHAPTER] Found spine item:", currentItem);
-
-      if (currentItem) {
-        // Try to get chapter title from navigation
-        book.loaded.navigation
-          .then((nav) => {
-            const toc = flatten(nav);
-            console.log(
-              "[CHAPTER] TOC items:",
-              toc.map((item) => ({ label: item.label, href: item.href }))
-            );
-
-            // Try to match by various href formats
-            const currentChapterItem = toc.find((item) => {
-              const itemHref = item.href.split("#")[0]; // Remove fragment
-              const locationHref = (location.href || "").split("#")[0]; // Remove fragment
-              const currentItemHref = (currentItem.href || "").split("#")[0]; // Remove fragment
-
-              return (
-                itemHref === locationHref ||
-                itemHref === currentItemHref ||
-                item.href === location.href ||
-                item.href === currentItem.href
-              );
-            });
-
-            console.log("[CHAPTER] Found chapter item:", currentChapterItem);
-
-            if (currentChapterItem) {
-              setCurrentChapter(currentChapterItem.label);
-            } else {
-              // Fallback to spine item title (without adding "Chapter X" prefix if title exists)
-              const chapterTitle =
-                currentItem.title || `Chapter ${(location.index || 0) + 1}`;
-              console.log("[CHAPTER] Using fallback title:", chapterTitle);
-              setCurrentChapter(chapterTitle);
-            }
-          })
-          .catch((error) => {
-            console.error("[CHAPTER] Error loading navigation:", error);
-            // Use spine item title directly without prefix
-            const chapterTitle =
-              currentItem.title || `Chapter ${(location.index || 0) + 1}`;
-            setCurrentChapter(chapterTitle);
-          });
-      } else {
-        console.warn("[CHAPTER] No spine item found for location:", location);
-        // Last resort fallback - only use generic name if no title available
-        setCurrentChapter(`Chapter ${(location.index || 0) + 1}`);
-      }
-    } catch (error) {
-      console.error("[CHAPTER] Error updating current chapter:", error);
-      setCurrentChapter(`Chapter ${(location.index || 0) + 1}`);
-    }
-  }, []);
 
   // Handle chapter navigation from menu
   const handleChapterNavigation = useCallback(

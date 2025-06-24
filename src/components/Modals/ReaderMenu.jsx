@@ -40,6 +40,7 @@ export const ReaderMenu = ({
   currentCFI,
   currentChapter,
   setIsNavigatingToChapter,
+  onChapterSelect, // For custom scroll manager navigation
 }) => {
   const [chapters, setChapters] = useState([]);
   const [annotations, setAnnotations] = useState([]);
@@ -97,6 +98,17 @@ export const ReaderMenu = ({
   }, []);
 
   const gotoChapter = async (href) => {
+    console.log("[GOTO_CHAPTER] Navigating to chapter, href:", href);
+
+    // If we have a custom chapter select handler (for custom scroll manager), use it
+    if (onChapterSelect) {
+      console.log("[GOTO_CHAPTER] Using custom scroll manager navigation");
+      onChapterSelect(href);
+      setIsOpen(false); // Close the menu
+      return;
+    }
+
+    // Otherwise, use the original epubjs navigation
     const id = href.split("#")[1];
     const item = book.spine.get(href);
     await item.load(book.load.bind(book));
@@ -104,7 +116,7 @@ export const ReaderMenu = ({
     // Check if we're in scrolled mode - if so, always go to chapter beginning
     const isScrolledMode = rendition.settings.flow === "scrolled";
     console.log(
-      "[GOTO_CHAPTER] Navigating to chapter, scrolled mode:",
+      "[GOTO_CHAPTER] Using epubjs navigation, scrolled mode:",
       isScrolledMode,
       "href:",
       href

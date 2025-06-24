@@ -77,6 +77,7 @@ function EpubReader() {
   const [mobileHoverMode, setMobileHoverMode] = useState(false);
   const [isUpdatingReadingMode, setIsUpdatingReadingMode] = useState(false);
   const [isNavigatingToChapter, setIsNavigatingToChapter] = useState(false);
+  const [initialFontLoadComplete, setInitialFontLoadComplete] = useState(false);
 
   // Touch/swipe state - using refs to avoid race conditions
   const touchStartRef = useRef(null);
@@ -98,6 +99,11 @@ function EpubReader() {
   const titleBarTimerRef = useRef(null);
   const viewerRef = useRef(null);
   const pageCalculationTimeoutRef = useRef(null);
+
+  // Font application debouncing
+  const fontApplicationTimeoutRef = useRef(null);
+  const lastFontApplicationRef = useRef(0);
+  const fontApplicationDebounceTime = 300; // ms
 
   // Detect mobile device on mount and window resize
   useEffect(() => {
@@ -514,6 +520,10 @@ function EpubReader() {
   useEffect(() => {
     return () => {
       resetSwipeState();
+      // Clear font application timeout
+      if (fontApplicationTimeoutRef.current) {
+        clearTimeout(fontApplicationTimeoutRef.current);
+      }
     };
   }, [resetSwipeState]);
 
@@ -589,13 +599,24 @@ function EpubReader() {
             "Bookerly",
             "Literata",
           ];
+          let allLoaded = true;
           for (const font of fonts) {
             const isLoaded = await document.fonts.check(`16px "${font}"`);
             console.log(`[FONT] ${font} loaded:`, isLoaded);
+            if (!isLoaded) allLoaded = false;
           }
+
+          // Set flag when initial font loading is complete
+          setInitialFontLoadComplete(true);
+          console.log("[FONT] Initial font loading complete:", allLoaded);
         } catch (error) {
           console.warn("[FONT] Font loading check failed:", error);
+          // Still set the flag to prevent blocking
+          setInitialFontLoadComplete(true);
         }
+      } else {
+        // If fonts API is not available, just set the flag
+        setInitialFontLoadComplete(true);
       }
     };
 
@@ -825,28 +846,26 @@ function EpubReader() {
 
         // Set the book in state and let React render the viewer element
         setLoadingMessage("Preparing viewer...");
-        console.log(
-          "[DEBUG] Setting loading to false to trigger viewer render"
-        );
-        setLoading(false); // This will cause React to render the viewer element
+        console.log("[DEBUG] Book loaded successfully, preparing to render");
 
-        // Use a small delay to ensure the DOM has updated, then render the book
+        // Since the viewer element is now always rendered, we can proceed directly
+        // Use a small delay to ensure the DOM is ready
         setTimeout(() => {
-          console.log("[DEBUG] Timeout callback - looking for viewer element");
+          console.log("[DEBUG] Looking for viewer element to render book");
           const viewerEl =
             viewerRef.current || document.getElementById("viewer");
           console.log("[DEBUG] Viewer element found:", !!viewerEl);
+
           if (viewerEl) {
             setLoadingMessage("Rendering book...");
             console.log("[DEBUG] Calling renderBook");
             renderBook(newBook);
           } else {
-            console.error(
-              "[DEBUG] Viewer element still not found after DOM update"
-            );
+            console.error("[DEBUG] Viewer element still not found");
             setLoadingMessage("Error: Could not initialize viewer");
+            setLoading(false);
           }
-        }, 100);
+        }, 200); // Slightly longer delay to ensure DOM is ready
       } catch (error) {
         const isMissingResource = error?.message?.includes(
           "File not found in the epub"
@@ -1002,9 +1021,22 @@ function EpubReader() {
       preferencesLoaded &&
       !isUpdatingReadingMode
     ) {
+      // Use epub.js built-in fontSize for better performance
       rendition.themes.fontSize(fontSize);
+
+      // In scrolled mode, also apply via our custom method to ensure consistency
+      if (readingMode === "scrolled") {
+        console.log("[FONT_SIZE] Applying font size in scrolled mode");
+        debouncedApplyFontSettings();
+      }
     }
-  }, [fontSize, rendition, preferencesLoaded, isUpdatingReadingMode]);
+  }, [
+    fontSize,
+    rendition,
+    preferencesLoaded,
+    isUpdatingReadingMode,
+    readingMode,
+  ]);
 
   // Apply font family changes
   useEffect(() => {
@@ -1013,21 +1045,40 @@ function EpubReader() {
       rendition: !!rendition,
       preferencesLoaded,
       isUpdatingReadingMode,
+      readingMode,
+      initialFontLoadComplete,
     });
-    if (rendition && preferencesLoaded && !isUpdatingReadingMode) {
+    if (
+      rendition &&
+      preferencesLoaded &&
+      !isUpdatingReadingMode &&
+      initialFontLoadComplete
+    ) {
       console.log("Applying font settings via effect");
-      applyFontSettings();
+      // Use debounced version to prevent rapid applications
+      debouncedApplyFontSettings();
     } else if (isUpdatingReadingMode) {
       console.log("Skipping font application - reading mode is being updated");
+    } else if (!initialFontLoadComplete) {
+      console.log(
+        "Skipping font application - initial font loading not complete"
+      );
     }
-  }, [fontFamily, rendition, preferencesLoaded, isUpdatingReadingMode]);
+  }, [
+    fontFamily,
+    rendition,
+    preferencesLoaded,
+    isUpdatingReadingMode,
+    readingMode,
+    initialFontLoadComplete,
+  ]);
 
   // Listen for new views being rendered and apply fonts to them
   useEffect(() => {
-    if (!rendition || !preferencesLoaded) return;
+    if (!rendition || !preferencesLoaded || !initialFontLoadComplete) return;
 
     const handleViewRendered = () => {
-      console.log("New view rendered, applying font settings");
+      console.log("New view rendered, checking if font application is needed");
       // Skip font application if reading mode is being updated
       if (isUpdatingReadingMode) {
         console.log(
@@ -1035,10 +1086,31 @@ function EpubReader() {
         );
         return;
       }
+
+      // Use actual rendition flow to avoid sync issues
+      const actualFlow = rendition?.settings?.flow;
+
+      // In scrolled mode, skip font applications during chapter navigation to prevent jumping
+      if (actualFlow === "scrolled" && isNavigatingToChapter) {
+        console.log(
+          "Skipping font application during chapter navigation in scrolled mode"
+        );
+        return;
+      }
+
+      // In scrolled mode, be more conservative about font applications in general
+      if (actualFlow === "scrolled") {
+        console.log(
+          "Skipping font application on view rendered in scrolled mode to prevent jumping"
+        );
+        return;
+      }
+
       // Small delay to ensure the iframe is fully loaded
       setTimeout(() => {
-        applyFontSettings();
-      }, 100);
+        console.log("Applying font settings after view rendered");
+        debouncedApplyFontSettings();
+      }, 150); // Slightly longer delay for stability
     };
 
     // Listen for when new views are rendered
@@ -1047,7 +1119,15 @@ function EpubReader() {
     return () => {
       rendition.off("rendered", handleViewRendered);
     };
-  }, [rendition, preferencesLoaded, fontFamily, isUpdatingReadingMode]);
+  }, [
+    rendition,
+    preferencesLoaded,
+    fontFamily,
+    isUpdatingReadingMode,
+    readingMode,
+    isNavigatingToChapter,
+    initialFontLoadComplete,
+  ]);
 
   // Fetch and apply annotations
   useEffect(() => {
@@ -1252,12 +1332,40 @@ function EpubReader() {
     }
   };
 
-  // Apply font settings to all elements
-  const applyFontSettings = () => {
+  // Debounced font application to prevent multiple rapid calls
+  const debouncedApplyFontSettings = useCallback(() => {
+    const now = Date.now();
+
+    // Clear any existing timeout
+    if (fontApplicationTimeoutRef.current) {
+      clearTimeout(fontApplicationTimeoutRef.current);
+    }
+
+    // If we're in scrolled mode and this is too soon after the last application, debounce it
+    if (
+      readingMode === "scrolled" &&
+      now - lastFontApplicationRef.current < fontApplicationDebounceTime
+    ) {
+      console.log("[FONT] Debouncing font application in scrolled mode");
+      fontApplicationTimeoutRef.current = setTimeout(() => {
+        applyFontSettingsImmediate();
+      }, fontApplicationDebounceTime);
+      return;
+    }
+
+    // Apply immediately
+    applyFontSettingsImmediate();
+  }, [readingMode, fontFamily, isNavigatingToChapter, initialFontLoadComplete]);
+
+  // Apply font settings to all elements (immediate version)
+  const applyFontSettingsImmediate = () => {
     if (!rendition) {
       console.log("Cannot apply font settings - rendition not available");
       return;
     }
+
+    // Update last application time
+    lastFontApplicationRef.current = Date.now();
 
     console.log(
       "[FONT] Applying font settings for:",
@@ -1325,15 +1433,38 @@ function EpubReader() {
           scrollPositions[index] !== undefined &&
           !isNavigatingToChapter
         ) {
-          setTimeout(() => {
+          // Use multiple attempts to restore scroll position for better reliability
+          const restoreScrollPosition = (attempt = 1) => {
             if (view.iframe && view.iframe.contentWindow) {
+              const currentScroll = view.iframe.contentWindow.scrollY;
+              const targetScroll = scrollPositions[index];
+
               console.log(
-                `[FONT] Restoring scroll position for view ${index}:`,
-                scrollPositions[index]
+                `[FONT] Attempt ${attempt} - Restoring scroll position for view ${index}: ${currentScroll} -> ${targetScroll}`
               );
-              view.iframe.contentWindow.scrollTo(0, scrollPositions[index]);
+
+              view.iframe.contentWindow.scrollTo(0, targetScroll);
+
+              // Verify scroll position was set correctly and retry if needed
+              setTimeout(() => {
+                if (view.iframe && view.iframe.contentWindow) {
+                  const newScroll = view.iframe.contentWindow.scrollY;
+                  if (Math.abs(newScroll - targetScroll) > 5 && attempt < 3) {
+                    console.log(
+                      `[FONT] Scroll position not accurate (${newScroll} vs ${targetScroll}), retrying...`
+                    );
+                    restoreScrollPosition(attempt + 1);
+                  } else {
+                    console.log(
+                      `[FONT] Scroll position restored successfully: ${newScroll}`
+                    );
+                  }
+                }
+              }, 50);
             }
-          }, 50);
+          };
+
+          setTimeout(restoreScrollPosition, 100);
         } else if (isNavigatingToChapter) {
           console.log(
             `[FONT] Skipping scroll position restoration during chapter navigation for view ${index}`
@@ -1346,6 +1477,9 @@ function EpubReader() {
       "[FONT] Font settings applied successfully via direct CSS injection"
     );
   };
+
+  // Legacy function for backward compatibility
+  const applyFontSettings = debouncedApplyFontSettings;
 
   // Find spine index manually (since indexOf is not available)
   const findSpineIndex = (book, href) => {
@@ -1590,6 +1724,9 @@ function EpubReader() {
                 "[CHAPTER] Error in delayed chapter setting:",
                 error
               );
+              // Ensure loading is marked complete even if there's an error
+              setLoading(false);
+              setIsBookLoading(false);
             }
           }, 500);
         })
@@ -1724,12 +1861,19 @@ function EpubReader() {
           );
         }
 
-        // Reapply font settings on each page change
+        // Reapply font settings on each page change, but skip during chapter navigation in scrolled mode
         console.log(
           "[FONT] About to apply font settings - Reading Mode:",
           readingMode
         );
-        applyFontSettings();
+
+        if (readingMode === "scrolled" && isNavigatingToChapter) {
+          console.log(
+            "[FONT] Skipping font application during chapter navigation in scrolled mode"
+          );
+        } else {
+          debouncedApplyFontSettings();
+        }
 
         // Reset swipe state when location changes (e.g., chapter navigation)
         console.log("[SWIPE] Location changed - resetting swipe state");
@@ -1791,10 +1935,24 @@ function EpubReader() {
       );
 
       setCurrentPage(estimatedCurrentPage);
+
+      // Mark loading as complete
+      console.log(
+        "[DEBUG] Initial page calculation complete, setting loading to false"
+      );
+      setLoading(false);
+      setIsBookLoading(false);
     } catch (error) {
       console.error("Error in initial page calculation:", error);
       setCurrentPage(1);
       setTotalPages(100);
+
+      // Still mark loading as complete even if there was an error
+      console.log(
+        "[DEBUG] Page calculation had error, but setting loading to false"
+      );
+      setLoading(false);
+      setIsBookLoading(false);
     }
   };
 
@@ -2304,8 +2462,34 @@ function EpubReader() {
         );
       }
 
-      // Reapply font settings on each page change
-      applyFontSettings();
+      // Only reapply font settings in paginated mode, but skip during chapter navigation
+      // In scrolled mode, avoid frequent font reapplication to prevent jumping
+      const actualFlow = rendition?.settings?.flow;
+      console.log("[LOCATION] Font application decision:", {
+        readingMode,
+        actualFlow,
+        isNavigatingToChapter,
+      });
+
+      // Use actual rendition flow instead of state to avoid sync issues
+      if (actualFlow === "paginated" && !isNavigatingToChapter) {
+        console.log(
+          "[LOCATION] Applying font settings due to location change in paginated mode"
+        );
+        debouncedApplyFontSettings();
+      } else if (actualFlow === "scrolled" && isNavigatingToChapter) {
+        console.log(
+          "[LOCATION] Skipping font application during chapter navigation in scrolled mode"
+        );
+      } else if (actualFlow === "scrolled") {
+        console.log(
+          "[LOCATION] Skipping font application in scrolled mode to prevent jumping"
+        );
+      } else {
+        console.log(
+          "[LOCATION] Skipping font application - unknown flow or during navigation"
+        );
+      }
 
       // Reset swipe state when location changes (e.g., chapter navigation)
       console.log("[SWIPE] Location changed - resetting swipe state");
@@ -2506,21 +2690,14 @@ function EpubReader() {
     }
   };
 
-  // Loading state
-  if (loading || !preferencesLoaded) {
-    return (
-      <div className="h-screen w-full flex flex-col justify-center items-center gap-4">
-        <CircularProgress size="lg" color="default" aria-label="Loading" />
-        <div className="text-center">
-          <p className="text-lg font-medium">
-            {!preferencesLoaded ? "Loading preferences..." : loadingMessage}
-          </p>
-          <p className="text-sm text-gray-500 mt-2">
-            Please wait while we prepare your book...
-          </p>
-        </div>
-      </div>
-    );
+  // Show loading overlay instead of blocking entire component render
+  const showLoadingOverlay =
+    loading || !preferencesLoaded || !initialFontLoadComplete;
+  let loadingOverlayMessage = loadingMessage;
+  if (!preferencesLoaded) {
+    loadingOverlayMessage = "Loading preferences...";
+  } else if (!initialFontLoadComplete) {
+    loadingOverlayMessage = "Loading fonts...";
   }
 
   // Error state - book not found
@@ -2738,6 +2915,21 @@ function EpubReader() {
               rendition={rendition}
               isUpdatingReadingMode={isUpdatingReadingMode}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Loading overlay */}
+      {showLoadingOverlay && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-center items-center gap-4 bg-white dark:bg-gray-900 bg-opacity-95 dark:bg-opacity-95">
+          <CircularProgress size="lg" color="default" aria-label="Loading" />
+          <div className="text-center">
+            <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
+              {loadingOverlayMessage}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              Please wait while we prepare your book...
+            </p>
           </div>
         </div>
       )}

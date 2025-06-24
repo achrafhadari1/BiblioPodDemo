@@ -1,6 +1,6 @@
 /**
  * User Preferences Storage using IndexedDB
- * Stores user settings like theme, font preferences, etc.
+ * Stores user settings like theme, font preferences, and reading progress
  */
 
 const DB_NAME = "BiblioPodUserPreferences";
@@ -132,7 +132,53 @@ class UserPreferencesDB {
   async setReadingMode(readingMode) {
     return await this.setPreference("readingMode", readingMode);
   }
+
+  // Reading progress methods
+  async getReadingProgress(bookId) {
+    const key = `progress_${bookId}`;
+    return await this.getPreference(key);
+  }
+
+  async setReadingProgress(bookId, progress) {
+    const key = `progress_${bookId}`;
+    const progressData = {
+      ...progress,
+      timestamp: Date.now(),
+    };
+    return await this.setPreference(key, progressData);
+  }
+
+  async clearReadingProgress(bookId) {
+    const key = `progress_${bookId}`;
+    return await this.setPreference(key, null);
+  }
 }
 
-// Export singleton instance
-export const userPreferencesDB = new UserPreferencesDB();
+// Create and export singleton instance
+const userPreferencesDB = new UserPreferencesDB();
+
+// Export the instance and helper functions
+export { userPreferencesDB };
+
+// Helper functions for reading progress
+export const saveReadingProgress = async (bookId, progress) => {
+  try {
+    await userPreferencesDB.init();
+    return await userPreferencesDB.setReadingProgress(bookId, progress);
+  } catch (error) {
+    console.error("Error saving reading progress:", error);
+    throw error;
+  }
+};
+
+export const loadReadingProgress = async (bookId) => {
+  try {
+    await userPreferencesDB.init();
+    return await userPreferencesDB.getReadingProgress(bookId);
+  } catch (error) {
+    console.error("Error loading reading progress:", error);
+    return null;
+  }
+};
+
+export default userPreferencesDB;

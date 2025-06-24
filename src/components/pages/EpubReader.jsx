@@ -128,7 +128,7 @@ function EpubReader() {
     restoreProgress,
     initializeWithPreferences,
   } = useCustomScrollManager(
-    componentMounted && progressFetched && readingMode === "scrolled"
+    componentMounted && progressFetched && readingMode === "scrolled" && book
       ? book
       : null,
     readingMode === "scrolled" ? rendition : null,
@@ -1493,8 +1493,23 @@ function EpubReader() {
       return;
     }
 
-    if (!rendition) {
-      console.log("Cannot apply font settings - rendition not available");
+    if (!rendition || isUpdatingReadingMode) {
+      console.log(
+        "Cannot apply font settings - rendition not available or mode updating"
+      );
+      return;
+    }
+
+    // Additional check to ensure rendition is properly initialized
+    try {
+      if (!rendition.manager || !rendition.manager.views) {
+        console.log(
+          "Cannot apply font settings - rendition not fully initialized"
+        );
+        return;
+      }
+    } catch (error) {
+      console.log("Cannot apply font settings - rendition error:", error);
       return;
     }
 
@@ -2378,9 +2393,19 @@ function EpubReader() {
         }
 
         newCFI = rendition.location.start.cfi;
-        newPercentage = Math.round(
-          rendition.book.locations.percentageFromCfi(newCFI) * 100
-        );
+
+        // Use book instance instead of rendition.book which might be undefined
+        const bookInstance = book || rendition.book;
+        if (bookInstance && bookInstance.locations) {
+          newPercentage = Math.round(
+            bookInstance.locations.percentageFromCfi(newCFI) * 100
+          );
+        } else {
+          console.log(
+            "[PROGRESS] Book locations not available, using current percentage"
+          );
+          newPercentage = currentPercentage || 0;
+        }
       } else {
         console.log("[PROGRESS] No valid location source available");
         return;
@@ -2400,9 +2425,10 @@ function EpubReader() {
 
       // For completed books, save the CFI that corresponds to 100% instead of current position
       let cfiToSave = newCFI;
-      if (newPercentage >= 100 && rendition.book.locations) {
+      const bookInstance = book || rendition.book;
+      if (newPercentage >= 100 && bookInstance && bookInstance.locations) {
         try {
-          const lastCFI = rendition.book.locations.cfiFromPercentage(1.0);
+          const lastCFI = bookInstance.locations.cfiFromPercentage(1.0);
           if (lastCFI) {
             cfiToSave = lastCFI;
             console.log(
@@ -2529,9 +2555,31 @@ function EpubReader() {
     // Track current chapter and update page info
     rendition.on("locationChanged", (location) => {
       console.log("[LOCATION] locationChanged event fired");
-      console.log("[LOCATION] - location.start.cfi:", location.start.cfi);
-      console.log("[LOCATION] - location.end.cfi:", location.end?.cfi);
-      console.log("[LOCATION] - location.start.href:", location.start.href);
+      console.log("[LOCATION] - Raw location object:", location);
+
+      // Get the actual current location from rendition if the event location is incomplete
+      let actualLocation = location;
+      if (!location.start?.cfi) {
+        try {
+          actualLocation = rendition.currentLocation();
+          console.log(
+            "[LOCATION] - Got actual location from rendition:",
+            actualLocation
+          );
+        } catch (error) {
+          console.warn("[LOCATION] - Could not get current location:", error);
+        }
+      }
+
+      console.log(
+        "[LOCATION] - location.start.cfi:",
+        actualLocation?.start?.cfi
+      );
+      console.log("[LOCATION] - location.end.cfi:", actualLocation?.end?.cfi);
+      console.log(
+        "[LOCATION] - location.start.href:",
+        actualLocation?.start?.href
+      );
       console.log(
         "[LOCATION] - Current state currentCFI before update:",
         currentCFI
@@ -2552,14 +2600,16 @@ function EpubReader() {
       }
 
       // Update current chapter with enhanced detection
-      updateCurrentChapter(location, book);
+      updateCurrentChapter(actualLocation, book);
 
       // Update current CFI - only in paginated mode to avoid jumping in scrolled mode
       if (readingMode === "paginated") {
         try {
           const currentLocation = rendition.currentLocation();
           const newCFI =
-            currentLocation?.start?.cfi || location.start.cfi || location.start;
+            currentLocation?.start?.cfi ||
+            actualLocation?.start?.cfi ||
+            actualLocation?.start;
           if (newCFI) {
             console.log(
               "[CFI] Setting currentCFI from currentLocation (paginated):",
@@ -2655,6 +2705,21 @@ function EpubReader() {
           "[READING_MODE] Got location from scroll manager:",
           currentLocation
         );
+
+        // For switching to paginated mode, we need to ensure the location format is correct
+        // The scroll manager might return a different format than what paginated expects
+        if (newMode === "paginated" && currentLocation) {
+          // Extract CFI if available, or use the location as-is
+          if (currentLocation.start?.cfi) {
+            currentLocation = currentLocation.start.cfi;
+          } else if (currentLocation.cfi) {
+            currentLocation = currentLocation.cfi;
+          }
+          console.log(
+            "[READING_MODE] Converted scroll location for paginated mode:",
+            currentLocation
+          );
+        }
       } else if (rendition) {
         // Get location from regular rendition
         currentLocation = rendition.currentLocation();
@@ -2662,9 +2727,38 @@ function EpubReader() {
           "[READING_MODE] Got location from rendition:",
           currentLocation
         );
+
+        // For switching to scrolled mode, we might need to format the location differently
+        if (newMode === "scrolled" && currentLocation) {
+          // The scroll manager expects a location object with start/end
+          if (typeof currentLocation === "string") {
+            // If it's just a CFI string, wrap it in the expected format
+            currentLocation = {
+              start: { cfi: currentLocation },
+              end: { cfi: currentLocation },
+            };
+          }
+          console.log(
+            "[READING_MODE] Converted paginated location for scroll mode:",
+            currentLocation
+          );
+        }
       }
     } catch (error) {
       console.warn("Could not get current location:", error);
+
+      // Fallback: try to use the current CFI if available
+      if (!currentLocation && currentCFI) {
+        console.log("[READING_MODE] Using fallback CFI:", currentCFI);
+        if (newMode === "paginated") {
+          currentLocation = currentCFI;
+        } else if (newMode === "scrolled") {
+          currentLocation = {
+            start: { cfi: currentCFI },
+            end: { cfi: currentCFI },
+          };
+        }
+      }
     }
 
     // Update the reading mode state - this will trigger the custom scroll manager hook
@@ -2725,13 +2819,20 @@ function EpubReader() {
 
         console.log(
           "[READING_MODE] About to display book at location:",
-          locationToDisplay,
+          currentLocation,
           "- Mode: paginated"
         );
 
-        if (locationToDisplay) {
-          await newRendition.display(locationToDisplay);
+        if (currentLocation) {
+          console.log(
+            "[READING_MODE] Displaying at specific location:",
+            currentLocation
+          );
+          await newRendition.display(currentLocation);
         } else {
+          console.log(
+            "[READING_MODE] No location provided, displaying from beginning"
+          );
           await newRendition.display();
         }
 
@@ -2782,11 +2883,37 @@ function EpubReader() {
         setRendition(null);
       }
 
-      // Reset flags after a delay to allow the scroll manager to initialize
-      setTimeout(() => {
+      // If we have a current location, save it for the scroll manager to restore
+      if (currentLocation) {
+        console.log(
+          "[READING_MODE] Saving location for scroll manager:",
+          currentLocation
+        );
+        // Update the saved progress data so the scroll manager can use it
+        setSavedProgressData(currentLocation);
+
+        // Also set it directly on the scroll manager if it's available
+        if (setSavedProgress) {
+          setSavedProgress(currentLocation);
+        }
+      }
+
+      // Reset flags after a delay to allow the scroll manager to initialize and restore progress
+      setTimeout(async () => {
+        // Try to restore progress if we have a current location and the scroll manager is ready
+        if (currentLocation && restoreProgress) {
+          console.log(
+            "[READING_MODE] Attempting to restore progress in scroll manager"
+          );
+          try {
+            await restoreProgress();
+          } catch (error) {
+            console.warn("Error restoring progress in scroll manager:", error);
+          }
+        }
         setIsUpdatingReadingMode(false);
         setIsNavigatingToChapter(false);
-      }, 1000);
+      }, 1500); // Increased timeout to allow for scroll manager initialization
     }
   };
 
@@ -2835,9 +2962,9 @@ function EpubReader() {
   // Render the reader
   return (
     <div
-      className={`overflow-y-hidden main-book-reader-container h-lvh ${
-        isDarkTheme ? "dark" : "default"
-      }`}
+      className={`${
+        readingMode === "paginated" ? "overflow-y-hidden" : ""
+      } main-book-reader-container h-lvh ${isDarkTheme ? "dark" : "default"}`}
     >
       {/* Text selection UI - independent of titlebar opacity */}
       <TextSelectionCoordinates

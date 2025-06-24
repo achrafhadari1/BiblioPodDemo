@@ -201,6 +201,27 @@ function EpubReader() {
     }
   }, [bookValue]);
 
+  // Set currentCFI from savedProgressData when it's available
+  useEffect(() => {
+    console.log(
+      "[PROGRESS] useEffect triggered - savedProgressData:",
+      !!savedProgressData,
+      "currentCFI:",
+      !!currentCFI
+    );
+    if (savedProgressData && savedProgressData.cfi && !currentCFI) {
+      console.log(
+        "[PROGRESS] Setting currentCFI from savedProgressData:",
+        savedProgressData.cfi
+      );
+      setCurrentCFI(savedProgressData.cfi);
+    } else if (savedProgressData && !savedProgressData.cfi) {
+      console.log("[PROGRESS] savedProgressData exists but no CFI found");
+    } else if (currentCFI) {
+      console.log("[PROGRESS] currentCFI already set, skipping");
+    }
+  }, [savedProgressData, currentCFI]);
+
   // Detect mobile device on mount and window resize
   useEffect(() => {
     const checkMobile = () => {
@@ -245,6 +266,29 @@ function EpubReader() {
       setCurrentPercentage(Math.round(scrollReadingProgress));
     }
   }, [scrollReadingProgress, readingMode]);
+
+  // Auto-save progress when scroll location changes (debounced)
+  const autoSaveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (readingMode === "scrolled" && scrollCurrentLocation && bookData) {
+      // Clear existing timeout
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+
+      // Debounce auto-save to avoid too frequent saves
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        console.log("[PROGRESS] Auto-saving progress in scrolled mode");
+        saveReadingProgress(true);
+      }, 2000); // Save after 2 seconds of no location changes
+    }
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [scrollCurrentLocation, readingMode, bookData]);
 
   // Helper function to reset swipe state
   const resetSwipeState = useCallback(() => {
@@ -816,7 +860,7 @@ function EpubReader() {
           `[DEBUG] Loading progress for ${bookData.title}: ${progress.current_percentage}%`
         );
 
-        if (progress.current_cfi) {
+        if (progress.current_cfi && !currentCFI) {
           console.log(
             `[DEBUG] Setting CFI: ${progress.current_cfi.substring(0, 50)}...`
           );
@@ -826,6 +870,11 @@ function EpubReader() {
           );
           setCurrentCFI(progress.current_cfi);
           setLoadingMessage("Reading progress loaded");
+        } else if (currentCFI) {
+          console.log(
+            "[CFI] currentCFI already set, skipping bookData progress"
+          );
+          setLoadingMessage("Reading progress already loaded");
         } else {
           setLoadingMessage("Starting from beginning");
         }
@@ -849,6 +898,8 @@ function EpubReader() {
       progressFetched,
       book: !!book,
       rendition: !!rendition,
+      savedProgressData: !!savedProgressData,
+      currentCFI: !!currentCFI,
     });
 
     if (!bookData || !progressFetched) {
@@ -856,6 +907,14 @@ function EpubReader() {
         bookData: !!bookData,
         progressFetched,
       });
+      return;
+    }
+
+    // If we have saved progress data but currentCFI is not set yet, wait for it
+    if (savedProgressData && savedProgressData.cfi && !currentCFI) {
+      console.log(
+        "[DEBUG] Waiting for currentCFI to be set from savedProgressData"
+      );
       return;
     }
 
@@ -1008,7 +1067,7 @@ function EpubReader() {
     } else {
       console.log("Book already loaded, skipping...");
     }
-  }, [bookData, progressFetched]);
+  }, [bookData, progressFetched, savedProgressData, currentCFI]);
 
   // Handle title bar visibility
   useEffect(() => {
@@ -1182,7 +1241,7 @@ function EpubReader() {
       initialFontLoadComplete,
     });
     if (
-      rendition &&
+      (rendition || readingMode === "scrolled") &&
       preferencesLoaded &&
       !isUpdatingReadingMode &&
       initialFontLoadComplete
@@ -1196,9 +1255,14 @@ function EpubReader() {
       console.log(
         "Skipping font application - initial font loading not complete"
       );
+    } else if (!rendition && readingMode !== "scrolled") {
+      console.log(
+        "Skipping font application - no rendition available for paginated mode"
+      );
     }
   }, [
     fontFamily,
+    fontSize,
     rendition,
     preferencesLoaded,
     isUpdatingReadingMode,
@@ -1495,7 +1559,11 @@ function EpubReader() {
     if (readingMode === "scrolled") {
       // Use custom scroll manager for font settings
       if (scrollApplyFontSettings) {
-        console.log("[FONT] Applying font settings via scroll manager");
+        console.log("[FONT] Applying font settings via scroll manager:", {
+          fontSize,
+          fontFamily,
+          scrollApplyFontSettings: !!scrollApplyFontSettings,
+        });
         scrollApplyFontSettings(fontSize, fontFamily);
       } else {
         console.log("[FONT] Scroll manager not available for font settings");
@@ -1571,11 +1639,46 @@ function EpubReader() {
         // Create new style element with font override
         const style = doc.createElement("style");
         style.id = "font-override-style";
+
+        // Calculate font size based on user preference
+        const baseFontSize = 18; // Base size in px
+        const calculatedFontSize = `${baseFontSize * fontSize}px`;
+
         style.textContent = `
-          * {
+          /* High specificity overrides for global font styles */
+          html *, html body *, body *, div *, p *, span *, 
+          h1 *, h2 *, h3 *, h4 *, h5 *, h6 * {
             font-family: ${fontWithFallback} !important;
           }
-          body, p, div, span, h1, h2, h3, h4, h5, h6 {
+          
+          /* Main content styling */
+          body {
+            font-family: ${fontWithFallback} !important;
+            font-size: ${calculatedFontSize} !important;
+            line-height: 1.7 !important;
+            text-align: justify !important;
+            hyphens: auto !important;
+            word-spacing: 0.1em !important;
+          }
+          
+          /* Paragraph styling */
+          p {
+            font-family: ${fontWithFallback} !important;
+            font-size: ${calculatedFontSize} !important;
+            line-height: 1.7 !important;
+            margin: 0 0 1.5em 0 !important;
+            text-indent: 1.5em !important;
+          }
+          
+          /* Heading styling */
+          h1, h2, h3, h4, h5, h6 {
+            font-family: ${fontWithFallback} !important;
+            line-height: 1.4 !important;
+            margin: 1.5em 0 1em 0 !important;
+          }
+          
+          /* Override any global font declarations */
+          * {
             font-family: ${fontWithFallback} !important;
           }
         `;
@@ -1702,6 +1805,7 @@ function EpubReader() {
 
     try {
       // In scrolled mode, don't create a rendition - let the custom scroll manager handle everything
+      console.log("[DEBUG] renderBook - readingMode:", readingMode);
       if (readingMode === "scrolled") {
         console.log(
           "[DEBUG] Scrolled mode detected - skipping rendition creation, custom scroll manager will handle rendering"
@@ -1712,6 +1816,17 @@ function EpubReader() {
       }
 
       console.log("[DEBUG] Creating rendition with element:", viewerElement);
+
+      // Double-check that we're not in scrolled mode (safety check)
+      if (readingMode === "scrolled") {
+        console.log(
+          "[DEBUG] Safety check: readingMode is scrolled, aborting rendition creation"
+        );
+        setBook(loadedBook);
+        setLoading(false);
+        return;
+      }
+
       // Configure rendition options for paginated mode only
       const renditionOptions = {
         width: `${window.innerWidth}px`,
@@ -1721,9 +1836,25 @@ function EpubReader() {
         flow: "paginated",
       };
 
+      // Ensure the viewer element is properly attached to the DOM
+      if (!viewerElement.isConnected) {
+        console.error("[DEBUG] Viewer element is not connected to DOM");
+        setLoadingMessage("Error: Viewer element not ready");
+        setLoading(false);
+        return;
+      }
+
       console.log("Creating rendition with options:", renditionOptions);
-      const newRendition = loadedBook.renderTo(viewerElement, renditionOptions);
-      console.log("[DEBUG] Rendition created successfully");
+      let newRendition;
+      try {
+        newRendition = loadedBook.renderTo(viewerElement, renditionOptions);
+        console.log("[DEBUG] Rendition created successfully");
+      } catch (error) {
+        console.error("[DEBUG] Error creating rendition:", error);
+        setLoadingMessage("Error creating book renderer");
+        setLoading(false);
+        return;
+      }
 
       // Apply global font styles before displaying content
       // First inject font definitions
@@ -2113,7 +2244,7 @@ function EpubReader() {
       return;
     }
 
-    if (!location || !location.start) {
+    if (!location) {
       console.log("[CHAPTER] No valid location provided");
       return;
     }
@@ -2383,8 +2514,30 @@ function EpubReader() {
       if (readingMode === "scrolled" && scrollCurrentLocation) {
         // Use scroll manager location
         console.log("[PROGRESS] Saving progress from scroll manager");
-        newCFI = scrollCurrentLocation.start?.cfi || scrollCurrentLocation.cfi;
+        newCFI =
+          scrollCurrentLocation.start?.cfi ||
+          scrollCurrentLocation.cfi ||
+          currentCFI;
         newPercentage = Math.round(scrollReadingProgress);
+
+        // If we still don't have a CFI, try to generate one from the current location
+        if (!newCFI && scrollCurrentLocation.href && book) {
+          try {
+            // Generate a basic CFI for the start of the section
+            const sectionIndex = scrollCurrentLocation.index;
+            if (sectionIndex !== undefined && sectionIndex >= 0) {
+              // Create a basic CFI pointing to the start of the section (consistent with CustomScrollManager)
+              newCFI = `/6/${(sectionIndex + 1) * 2}[id${sectionIndex}]!/0`;
+              console.log(
+                "[PROGRESS] Generated CFI from section index:",
+                newCFI
+              );
+            }
+          } catch (error) {
+            console.warn("[PROGRESS] Failed to generate CFI:", error);
+            newCFI = currentCFI; // Fallback to current CFI
+          }
+        }
       } else if (rendition) {
         // Use regular rendition location
         console.log("[PROGRESS] Saving progress from rendition");
@@ -2494,6 +2647,12 @@ function EpubReader() {
 
   // Update font size
   const updateFontSize = async (newSize) => {
+    console.log(
+      "[FONT SIZE] Updating font size to:",
+      newSize,
+      "Current reading mode:",
+      readingMode
+    );
     setFontSize(newSize);
 
     // Save to IndexedDB
@@ -2720,11 +2879,35 @@ function EpubReader() {
         // The scroll manager might return a different format than what paginated expects
         if (newMode === "paginated" && currentLocation) {
           // Extract CFI if available, or use the location as-is
+          let cfiToUse = null;
           if (currentLocation.start?.cfi) {
-            currentLocation = currentLocation.start.cfi;
+            cfiToUse = currentLocation.start.cfi;
           } else if (currentLocation.cfi) {
-            currentLocation = currentLocation.cfi;
+            cfiToUse = currentLocation.cfi;
           }
+
+          // Convert custom CFI format to standard ePub.js format
+          if (cfiToUse && typeof cfiToUse === "string") {
+            // Our format: /6/16[id7]!/0
+            // ePub.js expects: epubcfi(/6/16!/4/2/1:0)
+            try {
+              // Try to use the section index directly instead of CFI
+              if (currentLocation.index !== undefined) {
+                console.log(
+                  "[READING_MODE] Using section index for paginated mode:",
+                  currentLocation.index
+                );
+                // Don't use CFI, let the rendition navigate to the section by index
+                currentLocation = null; // Will fall back to using section navigation
+              } else {
+                currentLocation = cfiToUse;
+              }
+            } catch (error) {
+              console.warn("[READING_MODE] CFI conversion failed:", error);
+              currentLocation = null; // Will fall back to beginning
+            }
+          }
+
           console.log(
             "[READING_MODE] Converted scroll location for paginated mode:",
             currentLocation
@@ -2760,13 +2943,24 @@ function EpubReader() {
       // Fallback: try to use the current CFI if available
       if (!currentLocation && currentCFI) {
         console.log("[READING_MODE] Using fallback CFI:", currentCFI);
-        if (newMode === "paginated") {
+
+        // Check if CFI is in custom format (contains [id...])
+        const isCustomCFI =
+          currentCFI.includes("[id") && currentCFI.includes("]");
+
+        if (newMode === "paginated" && !isCustomCFI) {
+          // Only use CFI for paginated mode if it's in standard format
           currentLocation = currentCFI;
         } else if (newMode === "scrolled") {
           currentLocation = {
             start: { cfi: currentCFI },
             end: { cfi: currentCFI },
           };
+        } else if (newMode === "paginated" && isCustomCFI) {
+          console.log(
+            "[READING_MODE] Custom CFI detected, skipping fallback for paginated mode"
+          );
+          currentLocation = null; // Will use default display
         }
       }
     }
@@ -2859,13 +3053,37 @@ function EpubReader() {
           "- Mode: paginated"
         );
 
-        // If we're coming from scrolled mode and have a CFI, prioritize using that
-        if (readingMode === "scrolled" && currentCFI) {
+        // If we're coming from scrolled mode, use section index instead of CFI
+        if (
+          readingMode === "scrolled" &&
+          scrollCurrentLocation &&
+          scrollCurrentLocation.index !== undefined
+        ) {
           console.log(
-            "[READING_MODE] Using currentCFI for paginated mode:",
-            currentCFI
+            "[READING_MODE] Using section index for paginated mode:",
+            scrollCurrentLocation.index
           );
-          await newRendition.display(currentCFI);
+          try {
+            // Navigate to the section by index (more reliable than CFI conversion)
+            const sectionIndex = scrollCurrentLocation.index;
+            if (book && book.spine && book.spine.items[sectionIndex]) {
+              const section = book.spine.items[sectionIndex];
+              console.log(
+                "[READING_MODE] Navigating to section:",
+                section.href
+              );
+              await newRendition.display(section.href);
+            } else {
+              console.log(
+                "[READING_MODE] Section index out of range, using beginning"
+              );
+              await newRendition.display();
+            }
+          } catch (error) {
+            console.error("[READING_MODE] Error navigating to section:", error);
+            console.log("[READING_MODE] Falling back to beginning");
+            await newRendition.display();
+          }
         }
         // Otherwise use the currentLocation if available
         else if (currentLocation) {
@@ -3175,8 +3393,8 @@ function EpubReader() {
       <div
         className={`titlebar reader-controls ${
           showTitleBar || (isMobile && mobileHoverMode) ? "" : "opacity-low"
-        } ${
-          isMobile && mobileHoverMode ? "mobile-hover-active" : ""
+        } ${isMobile && mobileHoverMode ? "mobile-hover-active" : ""} ${
+          readingMode === "scrolled" ? "fixed w-full" : ""
         } transition-opacity duration-300`}
       >
         <div className="desktop-reader-menu">

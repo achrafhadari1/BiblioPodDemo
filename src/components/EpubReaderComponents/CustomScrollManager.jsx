@@ -140,14 +140,14 @@ class CustomScrollManager {
           this.container = document.createElement("div");
           this.container.id = "viewer-fallback";
           this.container.style.cssText = `
-               position: fixed;
-               top: 0;
-               left: 0;
-               width: 100%;
-               height: 100vh;
-               z-index: 1000;
-               background: white;
-             `;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100vh;
+                z-index: 1000;
+                background: white;
+              `;
           document.body.appendChild(this.container);
           console.log(
             "[CustomScrollManager] Created fallback viewer container"
@@ -162,15 +162,15 @@ class CustomScrollManager {
         // Set up container styles - use main page scroll, full width
         // Override any existing epub-viewer CSS that might interfere
         this.container.style.cssText = `
-             width: 100vw !important;
-             max-width: 100vw !important;
-             min-height: 100vh;
-             overflow: visible !important;
-             position: relative !important;
-             background: #ffffff;
-             margin: 0 !important;
-             padding: 0 !important;
-           `;
+              width: 100vw !important;
+              max-width: 100vw !important;
+              min-height: 100vh;
+              overflow: visible !important;
+              position: relative !important;
+              background: #ffffff;
+              margin: 0 !important;
+              padding: 0 !important;
+            `;
 
         // Ensure body can scroll
         document.body.style.overflow = "auto";
@@ -178,12 +178,12 @@ class CustomScrollManager {
         // Create sections container
         this.sectionsContainer = document.createElement("div");
         this.sectionsContainer.style.cssText = `
-             width: 100%;
-             min-height: 100vh;
-             position: relative;
-             display: flex;
-             flex-direction: column;
-           `;
+              width: 100%;
+              min-height: 100vh;
+              position: relative;
+              display: flex;
+              flex-direction: column;
+            `;
         this.container.appendChild(this.sectionsContainer);
 
         // Add event listeners - use window scroll instead of container scroll
@@ -232,8 +232,8 @@ class CustomScrollManager {
             const cfi = this.savedProgress.cfi;
 
             // Extract spine position from CFI
-            // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0)
-            let match = cfi.match(/epubcfi\(\/6\/(\d+)!/);
+            // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0) or /6/8[id3]!/2
+            let match = cfi.match(/(?:epubcfi\()?\/6\/(\d+)(?:\[[^\]]*\])?!/);
             if (match && match[1]) {
               const spinePos = parseInt(match[1], 10);
               console.log(
@@ -245,22 +245,55 @@ class CustomScrollManager {
                 this.sections.length
               );
 
-              // For this book format, spine positions start at 2 and increment by 2
-              // So spine position 22 = section index 10 (22-2)/2 = 10
+              // Try different calculation methods for spine position to section index
+              // Method 1: (spinePos - 2) / 2 (original)
               startSectionIndex = Math.floor((spinePos - 2) / 2);
+              console.log(
+                "[CustomScrollManager] Method 1 result:",
+                startSectionIndex
+              );
 
-              // Validate and adjust if needed
+              // Method 2: spinePos / 2 - 1 (alternative)
+              if (
+                startSectionIndex < 0 ||
+                startSectionIndex >= this.sections.length
+              ) {
+                startSectionIndex = Math.floor(spinePos / 2) - 1;
+                console.log(
+                  "[CustomScrollManager] Method 2 result:",
+                  startSectionIndex
+                );
+              }
+
+              // Method 3: spinePos - 4 (for books where spine starts at 4)
+              if (
+                startSectionIndex < 0 ||
+                startSectionIndex >= this.sections.length
+              ) {
+                startSectionIndex = spinePos - 4;
+                console.log(
+                  "[CustomScrollManager] Method 3 result:",
+                  startSectionIndex
+                );
+              }
+
+              // Method 4: Direct mapping (spinePos - 2)
+              if (
+                startSectionIndex < 0 ||
+                startSectionIndex >= this.sections.length
+              ) {
+                startSectionIndex = spinePos - 2;
+                console.log(
+                  "[CustomScrollManager] Method 4 result:",
+                  startSectionIndex
+                );
+              }
+
+              // Validate and clamp to valid range
               if (startSectionIndex < 0) {
                 startSectionIndex = 0;
               } else if (startSectionIndex >= this.sections.length) {
-                // Try alternative calculations
-                startSectionIndex = spinePos - 2; // Direct offset
-                if (startSectionIndex >= this.sections.length) {
-                  startSectionIndex = Math.floor(spinePos / 2) - 1; // Another calculation
-                }
-                if (startSectionIndex >= this.sections.length) {
-                  startSectionIndex = this.sections.length - 1; // Fallback to last section
-                }
+                startSectionIndex = this.sections.length - 1;
               }
 
               hasSavedProgress = true;
@@ -516,14 +549,14 @@ class CustomScrollManager {
       const backgroundColor = this.isDarkTheme ? "#1a1a1a" : "#ffffff";
 
       sectionElement.style.cssText = `
-           width: 100vw;
-           margin: 0;
-           padding: ${padding};
-           background: ${backgroundColor};
-           min-height: 100vh;
-           box-sizing: border-box;
-           position: relative;
-         `;
+            width: 100vw;
+            margin: 0;
+            padding: ${padding};
+            background: ${backgroundColor};
+            min-height: 100vh;
+            box-sizing: border-box;
+            position: relative;
+          `;
 
       // Clone the section content
       const content = section.item.document.body.cloneNode(true);
@@ -634,99 +667,187 @@ class CustomScrollManager {
     );
   }
 
+  // Get font family with proper fallbacks
+  getFontWithFallback(fontName) {
+    switch (fontName) {
+      case "Alegreya":
+        return "'Alegreya', Georgia, serif";
+      case "Lora":
+        return "'Lora', Georgia, serif";
+      case "Atkinson":
+        return "'Atkinson', Arial, sans-serif";
+      case "Bookerly":
+        return "'Bookerly', Georgia, serif";
+      case "Literata":
+        return "'Literata', Georgia, serif";
+      case "Merriweather":
+        return "'Merriweather', Georgia, serif";
+      case "Open Sans":
+        return "'Open Sans', Arial, sans-serif";
+      case "Roboto":
+        return "'Roboto', Arial, sans-serif";
+      case "Source Sans Pro":
+        return "'Source Sans Pro', Arial, sans-serif";
+      case "PT Serif":
+        return "'PT Serif', Georgia, serif";
+      case "Crimson Text":
+        return "'Crimson Text', Georgia, serif";
+      case "Libre Baskerville":
+        return "'Libre Baskerville', Georgia, serif";
+      default:
+        return `'${fontName}', Georgia, serif`;
+    }
+  }
+
   processContent(content, section) {
     // Use user preferences for font settings
     const baseFontSize = window.innerWidth <= 768 ? 16 : 18; // Base size in px
     const fontSize = `${baseFontSize * this.userFontSize}px`;
-    const fontFamily = this.userFontFamily;
+    const fontFamily = this.getFontWithFallback(this.userFontFamily);
     const textColor = this.isDarkTheme ? "#e0e0e0" : "#2c3e50";
 
-    // Apply clean typography styles to the content
-    content.style.cssText = `
-         font-family: ${fontFamily};
-         line-height: 1.7;
-         color: ${textColor};
-         font-size: ${fontSize};
-         text-align: justify;
-         hyphens: auto;
-         word-spacing: 0.1em;
-       `;
+    console.log("[CustomScrollManager] processContent with font settings:", {
+      userFontFamily: this.userFontFamily,
+      fontFamily,
+      fontSize,
+      baseFontSize,
+      userFontSize: this.userFontSize,
+    });
 
-    // Style paragraphs
+    // Apply clean typography styles to the content with high specificity
+    content.style.cssText = `
+          font-family: ${fontFamily} !important;
+          line-height: 1.7 !important;
+          color: ${textColor} !important;
+          font-size: ${fontSize} !important;
+          text-align: justify !important;
+          hyphens: auto !important;
+          word-spacing: 0.1em !important;
+        `;
+
+    // Create a style element to override global styles with high specificity
+    const existingStyle = content.querySelector("#scroll-font-override");
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+
+    const style = document.createElement("style");
+    style.id = "scroll-font-override";
+    style.textContent = `
+       /* High specificity overrides for global font styles */
+       * {
+         font-family: ${fontFamily} !important;
+       }
+       
+       /* Override global font declarations with maximum specificity */
+       html *, html body *, body *, div *, p *, span *, 
+       h1 *, h2 *, h3 *, h4 *, h5 *, h6 * {
+         font-family: ${fontFamily} !important;
+       }
+       
+       /* Ensure all text elements use the correct font */
+       body, div, p, span, h1, h2, h3, h4, h5, h6, 
+       article, section, main, aside, header, footer {
+         font-family: ${fontFamily} !important;
+         font-size: ${fontSize} !important;
+         line-height: 1.7 !important;
+       }
+       
+       /* Override any CSS custom properties that might interfere */
+       :root {
+         --font-sans: ${fontFamily} !important;
+       }
+     `;
+
+    // Insert the style at the beginning of the content
+    content.insertBefore(style, content.firstChild);
+
+    // Style paragraphs with high specificity
     const paragraphs = content.querySelectorAll("p");
     paragraphs.forEach((p) => {
       p.style.cssText = `
-           margin: 0 0 1.5em 0;
-           text-indent: 1.5em;
-           line-height: 1.7;
-         `;
+            font-family: ${fontFamily} !important;
+            font-size: ${fontSize} !important;
+            line-height: 1.7 !important;
+            margin: 0 0 1.5em 0 !important;
+            text-indent: 1.5em !important;
+            color: ${textColor} !important;
+          `;
     });
 
     // Style headings with epubjs-inspired styling
     const headings = content.querySelectorAll("h1, h2, h3, h4, h5, h6");
     headings.forEach((heading) => {
       heading.style.cssText = `
-           font-family: ${this.userFontFamily || "Georgia, serif"};
-           font-weight: normal;
-           margin: 0;
-           line-height: 1.2;
-           color: ${this.isDarkTheme ? "#ffffff" : "#1a1a1a"};
-           text-indent: 0;
-           text-align: center;
-           letter-spacing: 0.02em;
-         `;
+            font-family: ${fontFamily} !important;
+            font-weight: normal !important;
+            margin: 0 !important;
+            line-height: 1.2 !important;
+            color: ${textColor} !important;
+            text-indent: 0 !important;
+            text-align: center !important;
+            letter-spacing: 0.02em !important;
+          `;
     });
 
     // Style h1 specifically (Chapter titles)
     const h1s = content.querySelectorAll("h1");
     h1s.forEach((h1) => {
       h1.style.cssText += `
-           font-size: 2.5em;
-           font-weight: 300;
-           margin: 3em 0 2.5em 0;
-           padding: 0 2em;
-           text-transform: uppercase;
-           letter-spacing: 0.1em;
-           border-bottom: 1px solid ${this.isDarkTheme ? "#444" : "#e0e0e0"};
-           padding-bottom: 0.5em;
-           page-break-before: always;
-         `;
+            font-family: ${fontFamily} !important;
+            font-size: 2.5em !important;
+            font-weight: 300 !important;
+            margin: 3em 0 2.5em 0 !important;
+            padding: 0 2em !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.1em !important;
+            border-bottom: 1px solid ${
+              this.isDarkTheme ? "#444" : "#e0e0e0"
+            } !important;
+            padding-bottom: 0.5em !important;
+            page-break-before: always !important;
+            color: ${textColor} !important;
+          `;
     });
 
     // Style h2 (Section titles)
     const h2s = content.querySelectorAll("h2");
     h2s.forEach((h2) => {
       h2.style.cssText += `
-           font-size: 1.8em;
-           font-weight: 400;
-           margin: 2.5em 0 1.5em 0;
-           text-transform: capitalize;
-           letter-spacing: 0.05em;
-         `;
+            font-family: ${fontFamily} !important;
+            font-size: 1.8em !important;
+            font-weight: 400 !important;
+            margin: 2.5em 0 1.5em 0 !important;
+            text-transform: capitalize !important;
+            letter-spacing: 0.05em !important;
+            color: ${textColor} !important;
+          `;
     });
 
     // Style h3 (Subsection titles)
     const h3s = content.querySelectorAll("h3");
     h3s.forEach((h3) => {
       h3.style.cssText += `
-           font-size: 1.4em;
-           font-weight: 500;
-           margin: 2em 0 1em 0;
-           text-align: left;
-         `;
+            font-family: ${fontFamily} !important;
+            font-size: 1.4em !important;
+            font-weight: 500 !important;
+            margin: 2em 0 1em 0 !important;
+            text-align: left !important;
+            color: ${textColor} !important;
+          `;
     });
 
     // Handle images and SVGs
     const images = content.querySelectorAll("img, image");
     images.forEach((img) => {
       img.style.cssText = `
-           max-width: 100%;
-           height: auto;
-           display: block;
-           margin: 2em auto;
-           border-radius: 4px;
-           box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-         `;
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 2em auto;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          `;
 
       // Get the source URL - handle both img src and SVG image xlink:href
       const originalSrc =
@@ -816,13 +937,13 @@ class CustomScrollManager {
     const blockquotes = content.querySelectorAll("blockquote");
     blockquotes.forEach((bq) => {
       bq.style.cssText = `
-           margin: 2em 0;
-           padding: 1em 2em;
-           border-left: 4px solid #e0e0e0;
-           background: #f9f9f9;
-           font-style: italic;
-           text-indent: 0;
-         `;
+            margin: 2em 0;
+            padding: 1em 2em;
+            border-left: 4px solid #e0e0e0;
+            background: #f9f9f9;
+            font-style: italic;
+            text-indent: 0;
+          `;
     });
 
     // Handle emphasis and strong
@@ -840,10 +961,10 @@ class CustomScrollManager {
     const links = content.querySelectorAll("a");
     links.forEach((link) => {
       link.style.cssText = `
-           color: #3498db;
-           text-decoration: none;
-           border-bottom: 1px solid #3498db;
-         `;
+            color: #3498db;
+            text-decoration: none;
+            border-bottom: 1px solid #3498db;
+          `;
 
       // Prevent default link behavior and handle internally
       link.addEventListener("click", (e) => {
@@ -863,17 +984,17 @@ class CustomScrollManager {
     const lists = content.querySelectorAll("ul, ol");
     lists.forEach((list) => {
       list.style.cssText = `
-           margin: 1.5em 0;
-           padding-left: 2em;
-         `;
+            margin: 1.5em 0;
+            padding-left: 2em;
+          `;
     });
 
     const listItems = content.querySelectorAll("li");
     listItems.forEach((li) => {
       li.style.cssText = `
-           margin: 0.5em 0;
-           line-height: 1.6;
-         `;
+            margin: 0.5em 0;
+            line-height: 1.6;
+          `;
     });
 
     // Handle styles
@@ -1048,10 +1169,21 @@ class CustomScrollManager {
     // Emit section change event
     if (this.onSectionChangeCallback) {
       const section = this.sections[sectionIndex];
+
+      // Generate a basic CFI for the section using the same method as getCurrentLocation
+      const cfi = this.generateBasicCFI(sectionIndex, 0); // Start of section
+      console.log("[CustomScrollManager] Generated CFI for section:", cfi);
+
       this.onSectionChangeCallback({
         index: sectionIndex,
         href: section.href,
         id: section.id,
+        cfi: cfi,
+        start: {
+          index: sectionIndex,
+          href: section.href,
+          cfi: cfi,
+        },
       });
     }
   }
@@ -1353,7 +1485,12 @@ class CustomScrollManager {
   }
 
   applyFontSettings(fontSize, fontFamily) {
-    if (!this.sectionsContainer) return;
+    if (!this.sectionsContainer) {
+      console.log(
+        "[CustomScrollManager] No sections container, cannot apply font settings"
+      );
+      return;
+    }
 
     // Update user preferences
     this.userFontSize = fontSize || this.userFontSize;
@@ -1362,6 +1499,8 @@ class CustomScrollManager {
     console.log("[CustomScrollManager] Applying font settings:", {
       fontSize: this.userFontSize,
       fontFamily: this.userFontFamily,
+      sectionsCount: this.sections.length,
+      loadedSectionsCount: this.loadedSections.size,
     });
 
     // Reprocess all loaded sections with new font settings
@@ -1542,8 +1681,8 @@ class CustomScrollManager {
           let sectionIndex = null;
 
           // Extract spine position from CFI
-          // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0)
-          let match = cfi.match(/epubcfi\(\/6\/(\d+)!/);
+          // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0) or /6/8[id3]!/2
+          let match = cfi.match(/(?:epubcfi\()?\/6\/(\d+)(?:\[[^\]]*\])?!/);
           if (match && match[1]) {
             const spinePos = parseInt(match[1], 10);
             console.log(
@@ -1555,22 +1694,43 @@ class CustomScrollManager {
               this.sections.length
             );
 
-            // For this book format, spine positions start at 2 and increment by 2
-            // So spine position 22 = section index 10 (22-2)/2 = 10
+            // Try different calculation methods for spine position to section index
+            // Method 1: (spinePos - 2) / 2 (original)
             sectionIndex = Math.floor((spinePos - 2) / 2);
+            console.log("[CustomScrollManager] Method 1 result:", sectionIndex);
 
-            // Validate and adjust if needed
+            // Method 2: spinePos / 2 - 1 (alternative)
+            if (sectionIndex < 0 || sectionIndex >= this.sections.length) {
+              sectionIndex = Math.floor(spinePos / 2) - 1;
+              console.log(
+                "[CustomScrollManager] Method 2 result:",
+                sectionIndex
+              );
+            }
+
+            // Method 3: spinePos - 4 (for books where spine starts at 4)
+            if (sectionIndex < 0 || sectionIndex >= this.sections.length) {
+              sectionIndex = spinePos - 4;
+              console.log(
+                "[CustomScrollManager] Method 3 result:",
+                sectionIndex
+              );
+            }
+
+            // Method 4: Direct mapping (spinePos - 2)
+            if (sectionIndex < 0 || sectionIndex >= this.sections.length) {
+              sectionIndex = spinePos - 2;
+              console.log(
+                "[CustomScrollManager] Method 4 result:",
+                sectionIndex
+              );
+            }
+
+            // Validate and clamp to valid range
             if (sectionIndex < 0) {
               sectionIndex = 0;
             } else if (sectionIndex >= this.sections.length) {
-              // Try alternative calculations
-              sectionIndex = spinePos - 2; // Direct offset
-              if (sectionIndex >= this.sections.length) {
-                sectionIndex = Math.floor(spinePos / 2) - 1; // Another calculation
-              }
-              if (sectionIndex >= this.sections.length) {
-                sectionIndex = this.sections.length - 1; // Fallback to last section
-              }
+              sectionIndex = this.sections.length - 1;
             }
 
             console.log(

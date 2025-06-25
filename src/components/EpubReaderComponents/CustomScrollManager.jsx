@@ -838,7 +838,7 @@ class CustomScrollManager {
              `;
     });
 
-    // Handle images and SVGs
+    // Handle images and SVGs using our enhanced image processor
     const images = content.querySelectorAll("img, image");
     images.forEach((img) => {
       img.style.cssText = `
@@ -850,88 +850,8 @@ class CustomScrollManager {
                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
              `;
 
-      // Get the source URL - handle both img src and SVG image xlink:href
-      const originalSrc =
-        img.getAttribute("src") ||
-        img.getAttribute("xlink:href") ||
-        img.getAttribute("href");
-
-      // Handle relative URLs - convert to blob URLs like epubjs does
-      if (
-        originalSrc &&
-        !originalSrc.startsWith("http") &&
-        !originalSrc.startsWith("data:") &&
-        !originalSrc.startsWith("blob:")
-      ) {
-        try {
-          console.log("[CustomScrollManager] Processing image:", originalSrc);
-
-          // Try to get the image as a blob using epubjs archive methods
-          let blobPromise = null;
-
-          // Ensure the URL starts with a slash for epubjs archive
-          let archiveUrl = originalSrc;
-          if (!archiveUrl.startsWith("/")) {
-            archiveUrl = "/" + archiveUrl;
-          }
-
-          console.log(
-            "[CustomScrollManager] Trying to get blob for:",
-            archiveUrl
-          );
-
-          if (typeof this.book.archive.getBlob === "function") {
-            blobPromise = this.book.archive.getBlob(archiveUrl);
-          } else if (typeof this.book.archive.request === "function") {
-            blobPromise = this.book.archive.request(archiveUrl, "blob");
-          }
-
-          if (blobPromise) {
-            blobPromise
-              .then((blob) => {
-                if (blob) {
-                  const blobUrl = URL.createObjectURL(blob);
-                  console.log(
-                    "[CustomScrollManager] Created blob URL for image:",
-                    blobUrl
-                  );
-
-                  // Set the appropriate attribute based on element type
-                  if (img.tagName.toLowerCase() === "img") {
-                    img.src = blobUrl;
-                  } else {
-                    // For SVG image elements
-                    img.setAttribute("xlink:href", blobUrl);
-                    img.setAttribute("href", blobUrl);
-                  }
-
-                  // Store the blob URL for cleanup later
-                  img.dataset.blobUrl = blobUrl;
-                } else {
-                  console.warn(
-                    "[CustomScrollManager] getBlob returned null/undefined for:",
-                    archiveUrl
-                  );
-                  this.fallbackImageResolution(img, originalSrc);
-                }
-              })
-              .catch((error) => {
-                console.error(
-                  "[CustomScrollManager] Error creating blob URL for image:",
-                  error
-                );
-                this.fallbackImageResolution(img, originalSrc);
-              });
-          } else {
-            console.warn(
-              "[CustomScrollManager] No suitable blob method found, using resolve fallback"
-            );
-            this.fallbackImageResolution(img, originalSrc);
-          }
-        } catch (error) {
-          console.error("[CustomScrollManager] Error processing image:", error);
-        }
-      }
+      // Process the image using our enhanced image handler
+      this.processImage(img, section);
     });
 
     // Handle blockquotes
@@ -2226,7 +2146,7 @@ class CustomScrollManager {
              `;
     });
 
-    // Handle images and SVGs
+    // Handle images and SVGs using our enhanced image processor
     const images = content.querySelectorAll("img, image");
     images.forEach((img) => {
       img.style.cssText = `
@@ -2238,88 +2158,8 @@ class CustomScrollManager {
                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
              `;
 
-      // Get the source URL - handle both img src and SVG image xlink:href
-      const originalSrc =
-        img.getAttribute("src") ||
-        img.getAttribute("xlink:href") ||
-        img.getAttribute("href");
-
-      // Handle relative URLs - convert to blob URLs like epubjs does
-      if (
-        originalSrc &&
-        !originalSrc.startsWith("http") &&
-        !originalSrc.startsWith("data:") &&
-        !originalSrc.startsWith("blob:")
-      ) {
-        try {
-          console.log("[CustomScrollManager] Processing image:", originalSrc);
-
-          // Try to get the image as a blob using epubjs archive methods
-          let blobPromise = null;
-
-          // Ensure the URL starts with a slash for epubjs archive
-          let archiveUrl = originalSrc;
-          if (!archiveUrl.startsWith("/")) {
-            archiveUrl = "/" + archiveUrl;
-          }
-
-          console.log(
-            "[CustomScrollManager] Trying to get blob for:",
-            archiveUrl
-          );
-
-          if (typeof this.book.archive.getBlob === "function") {
-            blobPromise = this.book.archive.getBlob(archiveUrl);
-          } else if (typeof this.book.archive.request === "function") {
-            blobPromise = this.book.archive.request(archiveUrl, "blob");
-          }
-
-          if (blobPromise) {
-            blobPromise
-              .then((blob) => {
-                if (blob) {
-                  const blobUrl = URL.createObjectURL(blob);
-                  console.log(
-                    "[CustomScrollManager] Created blob URL for image:",
-                    blobUrl
-                  );
-
-                  // Set the appropriate attribute based on element type
-                  if (img.tagName.toLowerCase() === "img") {
-                    img.src = blobUrl;
-                  } else {
-                    // For SVG image elements
-                    img.setAttribute("xlink:href", blobUrl);
-                    img.setAttribute("href", blobUrl);
-                  }
-
-                  // Store the blob URL for cleanup later
-                  img.dataset.blobUrl = blobUrl;
-                } else {
-                  console.warn(
-                    "[CustomScrollManager] getBlob returned null/undefined for:",
-                    archiveUrl
-                  );
-                  this.fallbackImageResolution(img, originalSrc);
-                }
-              })
-              .catch((error) => {
-                console.error(
-                  "[CustomScrollManager] Error creating blob URL for image:",
-                  error
-                );
-                this.fallbackImageResolution(img, originalSrc);
-              });
-          } else {
-            console.warn(
-              "[CustomScrollManager] No suitable blob method found, using resolve fallback"
-            );
-            this.fallbackImageResolution(img, originalSrc);
-          }
-        } catch (error) {
-          console.error("[CustomScrollManager] Error processing image:", error);
-        }
-      }
+      // Process the image using our enhanced image handler
+      this.processImage(img, section);
     });
 
     // Handle blockquotes
@@ -3179,6 +3019,497 @@ class CustomScrollManager {
     this.applyFontSettings(this.userFontSize, this.userFontFamily);
   }
 
+  // Process an image element
+  processImage(img, section) {
+    // Get the source URL - handle both img src and SVG image xlink:href
+    const originalSrc =
+      img.getAttribute("src") ||
+      img.getAttribute("xlink:href") ||
+      img.getAttribute("href");
+
+    if (!originalSrc) return;
+
+    // Skip if already a blob or data URL
+    if (originalSrc.startsWith("blob:") || originalSrc.startsWith("data:")) {
+      console.log(
+        "[CustomScrollManager] Image already has blob or data URL, skipping conversion"
+      );
+      return;
+    }
+
+    console.log("[CustomScrollManager] Processing image:", originalSrc);
+
+    // For HTTP URLs, fetch directly
+    if (originalSrc.startsWith("http")) {
+      console.log(
+        "[CustomScrollManager] Fetching external image:",
+        originalSrc
+      );
+      this.fetchImageAsBlob(img, originalSrc);
+      return;
+    }
+
+    // Try to find the image in the book's resources first
+    if (this.tryBookResource(img, originalSrc)) {
+      return;
+    }
+
+    // For relative URLs, try multiple approaches
+    try {
+      // First try: Use epubjs archive methods
+      let blobPromise = null;
+
+      // Ensure the URL starts with a slash for epubjs archive
+      let archiveUrl = originalSrc;
+      if (!archiveUrl.startsWith("/")) {
+        archiveUrl = "/" + archiveUrl;
+      }
+
+      console.log("[CustomScrollManager] Trying to get blob for:", archiveUrl);
+
+      if (this.book && this.book.archive) {
+        if (typeof this.book.archive.getBlob === "function") {
+          blobPromise = this.book.archive.getBlob(archiveUrl);
+        } else if (typeof this.book.archive.request === "function") {
+          blobPromise = this.book.archive.request(archiveUrl, "blob");
+        }
+      }
+
+      if (blobPromise) {
+        blobPromise
+          .then((blob) => {
+            if (blob) {
+              const blobUrl = URL.createObjectURL(blob);
+              console.log(
+                "[CustomScrollManager] Created blob URL for image:",
+                blobUrl
+              );
+
+              // Set the appropriate attribute based on element type
+              if (img.tagName.toLowerCase() === "img") {
+                img.src = blobUrl;
+              } else {
+                // For SVG image elements
+                img.setAttribute("xlink:href", blobUrl);
+                img.setAttribute("href", blobUrl);
+              }
+
+              // Store the blob URL for cleanup later
+              img.dataset.blobUrl = blobUrl;
+            } else {
+              console.warn(
+                "[CustomScrollManager] getBlob returned null/undefined for:",
+                archiveUrl
+              );
+              this.fallbackImageResolution(img, originalSrc);
+            }
+          })
+          .catch((error) => {
+            console.error(
+              "[CustomScrollManager] Error creating blob URL for image:",
+              error
+            );
+            this.fallbackImageResolution(img, originalSrc);
+          });
+      } else {
+        console.warn(
+          "[CustomScrollManager] No suitable blob method found, using resolve fallback"
+        );
+        this.fallbackImageResolution(img, originalSrc);
+      }
+    } catch (error) {
+      console.error("[CustomScrollManager] Error processing image:", error);
+      // Try our fallback method as a last resort
+      this.fallbackImageResolution(img, originalSrc);
+    }
+  }
+
+  // Try to find and use a resource from the book
+  tryBookResource(img, originalSrc) {
+    if (!this.book) {
+      return false;
+    }
+
+    // Extract filename for partial matching
+    const filename = originalSrc.split("/").pop();
+
+    // Try different variations of the path
+    const pathVariations = [
+      originalSrc,
+      originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc,
+      !originalSrc.startsWith("/") ? "/" + originalSrc : originalSrc,
+      "images/" +
+        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
+      "/images/" +
+        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
+      "Images/" +
+        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
+      "/Images/" +
+        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
+      filename,
+      "images/" + filename,
+      "/images/" + filename,
+      "Images/" + filename,
+      "/Images/" + filename,
+    ];
+
+    // First try: Direct access to the book's archive using the URL
+    if (this.book.archive && typeof this.book.archive.getBlob === "function") {
+      for (const path of pathVariations) {
+        try {
+          const archiveUrl = path.startsWith("/") ? path : "/" + path;
+          console.log(
+            "[CustomScrollManager] Directly trying archive for:",
+            archiveUrl
+          );
+
+          // Get the blob directly from the archive
+          const blobPromise = this.book.archive.getBlob(archiveUrl);
+          if (blobPromise) {
+            // Set a placeholder while loading
+            if (img.tagName.toLowerCase() === "img") {
+              img.src =
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f0f0f0'/%3E%3Ctext x='50' y='50' font-family='Arial' font-size='10' text-anchor='middle' fill='%23999'%3ELoading...%3C/text%3E%3C/svg%3E";
+            }
+
+            // Handle the promise
+            blobPromise
+              .then((blob) => {
+                if (blob) {
+                  const blobUrl = URL.createObjectURL(blob);
+                  console.log(
+                    "[CustomScrollManager] Created blob URL directly from archive:",
+                    blobUrl
+                  );
+
+                  if (img.tagName.toLowerCase() === "img") {
+                    img.src = blobUrl;
+                  } else {
+                    img.setAttribute("xlink:href", blobUrl);
+                    img.setAttribute("href", blobUrl);
+                  }
+
+                  // Store the blob URL for cleanup later
+                  img.dataset.blobUrl = blobUrl;
+                  return true;
+                }
+              })
+              .catch(() => {
+                // Silently fail and continue to next method
+              });
+
+            return true;
+          }
+        } catch (error) {
+          // Silently fail and continue to next method
+        }
+      }
+    }
+
+    // Second try: Use the book's resources collection
+    if (this.book.resources) {
+      // Try to find the resource in the book's resources
+      for (const path of pathVariations) {
+        try {
+          const resource = this.book.resources.get(path);
+          if (resource) {
+            console.log(
+              "[CustomScrollManager] Found resource in book by exact path:",
+              path
+            );
+            this.getResourceAsBlob(img, resource);
+            return true;
+          }
+        } catch (error) {
+          // Silently fail and continue
+        }
+      }
+
+      // If exact match failed, try partial matching with the filename
+      if (filename && this.book.resources.resources) {
+        try {
+          const resources = this.book.resources.resources;
+          for (const key in resources) {
+            const resource = resources[key];
+            if (
+              resource.href &&
+              (resource.href.includes(filename) ||
+                (resource.id && resource.id.includes(filename)))
+            ) {
+              console.log(
+                "[CustomScrollManager] Found resource in book by filename:",
+                resource.href
+              );
+              this.getResourceAsBlob(img, resource);
+              return true;
+            }
+          }
+        } catch (error) {
+          // Silently fail and continue
+        }
+      }
+    }
+
+    // Third try: Look through the spine items
+    if (this.book.spine && this.book.spine.items) {
+      try {
+        for (const item of this.book.spine.items) {
+          if (
+            item.href &&
+            (item.href.includes(filename) ||
+              (item.id && item.id.includes(filename)))
+          ) {
+            console.log(
+              "[CustomScrollManager] Found image in spine item:",
+              item.href
+            );
+            this.getResourceAsBlob(img, item);
+            return true;
+          }
+        }
+      } catch (error) {
+        // Silently fail and continue
+      }
+    }
+
+    // Fourth try: Look through the book's sections
+    if (this.book.sections) {
+      try {
+        for (const section of this.book.sections) {
+          if (section.href && section.href.includes(filename)) {
+            console.log(
+              "[CustomScrollManager] Found image in book section:",
+              section.href
+            );
+            this.getResourceAsBlob(img, section);
+            return true;
+          }
+        }
+      } catch (error) {
+        // Silently fail and continue
+      }
+    }
+
+    // Fifth try: Use the book's resolve method
+    if (this.book.resolve && typeof this.book.resolve === "function") {
+      try {
+        for (const path of pathVariations) {
+          const resolvedUrl = this.book.resolve(path);
+          if (resolvedUrl) {
+            console.log(
+              "[CustomScrollManager] Resolved URL for image:",
+              resolvedUrl
+            );
+            this.getResourceAsBlob(img, resolvedUrl);
+            return true;
+          }
+        }
+      } catch (error) {
+        // Silently fail and continue
+      }
+    }
+
+    // Last try: Check if the book has a createUrl method (some EPUB.js versions use this)
+    if (this.book.createUrl && typeof this.book.createUrl === "function") {
+      try {
+        for (const path of pathVariations) {
+          const url = this.book.createUrl(path);
+          if (url) {
+            console.log("[CustomScrollManager] Created URL for image:", url);
+
+            if (img.tagName.toLowerCase() === "img") {
+              img.src = url;
+            } else {
+              img.setAttribute("xlink:href", url);
+              img.setAttribute("href", url);
+            }
+
+            return true;
+          }
+        }
+      } catch (error) {
+        // Silently fail and continue
+      }
+    }
+
+    return false;
+  }
+
+  // Get a resource as a blob and set it as the image source
+  getResourceAsBlob(img, resource) {
+    if (!resource || !this.book || !this.book.archive) {
+      return false;
+    }
+
+    try {
+      // Get the resource URL
+      let href = null;
+
+      // Handle different resource types
+      if (typeof resource === "string") {
+        href = resource;
+      } else if (resource.href) {
+        href = resource.href;
+      } else if (resource.url) {
+        href = resource.url;
+      } else if (resource.path) {
+        href = resource.path;
+      } else if (resource.then && typeof resource.then === "function") {
+        // It's a promise, handle it
+        resource
+          .then((result) => {
+            if (typeof result === "string" && result.startsWith("blob:")) {
+              // It's already a blob URL
+              console.log(
+                "[CustomScrollManager] Resource is already a blob URL:",
+                result
+              );
+
+              if (img.tagName.toLowerCase() === "img") {
+                img.src = result;
+              } else {
+                img.setAttribute("xlink:href", result);
+                img.setAttribute("href", result);
+              }
+
+              return true;
+            } else if (result instanceof Blob) {
+              // It's a blob, create a URL
+              const blobUrl = URL.createObjectURL(result);
+              console.log(
+                "[CustomScrollManager] Created blob URL from promise result:",
+                blobUrl
+              );
+
+              if (img.tagName.toLowerCase() === "img") {
+                img.src = blobUrl;
+              } else {
+                img.setAttribute("xlink:href", blobUrl);
+                img.setAttribute("href", blobUrl);
+              }
+
+              // Store the blob URL for cleanup later
+              img.dataset.blobUrl = blobUrl;
+              return true;
+            } else {
+              // Try to handle the result
+              return this.getResourceAsBlob(img, result);
+            }
+          })
+          .catch((error) => {
+            console.error(
+              "[CustomScrollManager] Error resolving resource promise:",
+              error
+            );
+            return false;
+          });
+
+        return true;
+      }
+
+      if (!href) {
+        console.log("[CustomScrollManager] Resource has no href:", resource);
+        return false;
+      }
+
+      // Ensure the URL starts with a slash for epubjs archive
+      const archiveUrl = href.startsWith("/") ? href : "/" + href;
+
+      console.log(
+        "[CustomScrollManager] Getting resource as blob:",
+        archiveUrl
+      );
+
+      // Try different methods to get the blob
+      if (typeof this.book.archive.getBlob === "function") {
+        this.book.archive
+          .getBlob(archiveUrl)
+          .then((blob) => {
+            if (blob) {
+              const blobUrl = URL.createObjectURL(blob);
+              console.log(
+                "[CustomScrollManager] Created blob URL from resource:",
+                blobUrl
+              );
+
+              if (img.tagName.toLowerCase() === "img") {
+                img.src = blobUrl;
+              } else {
+                img.setAttribute("xlink:href", blobUrl);
+                img.setAttribute("href", blobUrl);
+              }
+
+              // Store the blob URL for cleanup later
+              img.dataset.blobUrl = blobUrl;
+              return true;
+            } else {
+              console.warn(
+                "[CustomScrollManager] getBlob returned null/undefined for:",
+                archiveUrl
+              );
+              return false;
+            }
+          })
+          .catch((error) => {
+            console.error(
+              "[CustomScrollManager] Error getting blob from archive:",
+              error
+            );
+            return false;
+          });
+      } else if (typeof this.book.archive.request === "function") {
+        this.book.archive
+          .request(archiveUrl, "blob")
+          .then((blob) => {
+            if (blob) {
+              const blobUrl = URL.createObjectURL(blob);
+              console.log(
+                "[CustomScrollManager] Created blob URL from resource request:",
+                blobUrl
+              );
+
+              if (img.tagName.toLowerCase() === "img") {
+                img.src = blobUrl;
+              } else {
+                img.setAttribute("xlink:href", blobUrl);
+                img.setAttribute("href", blobUrl);
+              }
+
+              // Store the blob URL for cleanup later
+              img.dataset.blobUrl = blobUrl;
+              return true;
+            } else {
+              console.warn(
+                "[CustomScrollManager] request returned null/undefined for:",
+                archiveUrl
+              );
+              return false;
+            }
+          })
+          .catch((error) => {
+            console.error(
+              "[CustomScrollManager] Error requesting blob from archive:",
+              error
+            );
+            return false;
+          });
+      } else {
+        console.warn(
+          "[CustomScrollManager] No suitable method to get blob from archive"
+        );
+        return false;
+      }
+    } catch (error) {
+      console.error(
+        "[CustomScrollManager] Error getting resource as blob:",
+        error
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   // Fallback image resolution method
   fallbackImageResolution(img, originalSrc) {
     try {
@@ -3212,13 +3543,43 @@ class CustomScrollManager {
           resolvedUrl
         );
 
-        if (img.tagName.toLowerCase() === "img") {
-          img.src = resolvedUrl;
-        } else {
-          img.setAttribute("xlink:href", resolvedUrl);
-          img.setAttribute("href", resolvedUrl);
-        }
+        // Try to get the image as a blob using our enhanced method
+        this.fetchImageAsBlob(img, resolvedUrl);
         return;
+      }
+
+      // Try to find the image in the book's spine items
+      if (this.book && this.book.spine && this.book.spine.items) {
+        for (const item of this.book.spine.items) {
+          if (item.href && item.href.includes(originalSrc)) {
+            console.log(
+              "[CustomScrollManager] Found image in spine item:",
+              item.href
+            );
+            this.fetchImageAsBlob(img, item.href);
+            return;
+          }
+        }
+      }
+
+      // Try to find the image in the book's resources
+      if (this.book && this.book.resources && this.book.resources.resources) {
+        const resources = this.book.resources.resources;
+        for (const key in resources) {
+          const resource = resources[key];
+          if (
+            resource.href &&
+            (resource.href.includes(originalSrc) ||
+              originalSrc.includes(resource.href))
+          ) {
+            console.log(
+              "[CustomScrollManager] Found image in resources:",
+              resource.href
+            );
+            this.fetchImageAsBlob(img, resource.href);
+            return;
+          }
+        }
       }
     } catch (fallbackError) {
       console.error(
@@ -3237,22 +3598,260 @@ class CustomScrollManager {
         finalUrl
       );
 
-      if (img.tagName.toLowerCase() === "img") {
-        img.src = finalUrl;
-      } else {
-        img.setAttribute("xlink:href", finalUrl);
-        img.setAttribute("href", finalUrl);
-      }
+      // Try to get the image as a blob using our enhanced method
+      this.tryFetchImage(img, finalUrl);
     } catch (lastResortError) {
       console.error(
         "[CustomScrollManager] Even section-relative resolution failed:",
         lastResortError
       );
-      // If all else fails, just use the original src
+
+      // If all else fails, try with the original src
+      this.tryFetchImage(img, originalSrc);
+    }
+  }
+
+  // Helper method to fetch an image as a blob and set it as the source
+  fetchImageAsBlob(img, url) {
+    // Check if the URL is already a blob URL
+    if (url.startsWith("blob:")) {
       if (img.tagName.toLowerCase() === "img") {
-        img.src = originalSrc;
+        img.src = url;
+      } else {
+        img.setAttribute("xlink:href", url);
+        img.setAttribute("href", url);
+      }
+      return;
+    }
+
+    // Try to get the image directly from the book's resources
+    if (this.book && this.book.resources) {
+      // Clean up the URL - remove any leading slash
+      let resourceUrl = url;
+      if (resourceUrl.startsWith("/")) {
+        resourceUrl = resourceUrl.substring(1);
+      }
+
+      // Try to find the resource in the book's resources
+      const resource = this.book.resources.get(resourceUrl);
+      if (resource) {
+        console.log(
+          "[CustomScrollManager] Found resource in book:",
+          resourceUrl
+        );
+
+        // Get the resource as a blob
+        if (resource.href && this.book.archive) {
+          try {
+            // Use the same method that EPUB.js uses in paginated mode
+            const archiveUrl = resource.href.startsWith("/")
+              ? resource.href
+              : "/" + resource.href;
+
+            // Try different methods to get the blob
+            let blobPromise = null;
+            if (typeof this.book.archive.getBlob === "function") {
+              blobPromise = this.book.archive.getBlob(archiveUrl);
+            } else if (typeof this.book.archive.request === "function") {
+              blobPromise = this.book.archive.request(archiveUrl, "blob");
+            }
+
+            if (blobPromise) {
+              blobPromise
+                .then((blob) => {
+                  if (blob) {
+                    const blobUrl = URL.createObjectURL(blob);
+                    console.log(
+                      "[CustomScrollManager] Created blob URL from book resource:",
+                      blobUrl
+                    );
+
+                    if (img.tagName.toLowerCase() === "img") {
+                      img.src = blobUrl;
+                    } else {
+                      img.setAttribute("xlink:href", blobUrl);
+                      img.setAttribute("href", blobUrl);
+                    }
+
+                    // Store the blob URL for cleanup later
+                    img.dataset.blobUrl = blobUrl;
+                  } else {
+                    this.tryFetchImage(img, url);
+                  }
+                })
+                .catch((error) => {
+                  console.error(
+                    "[CustomScrollManager] Error getting blob from archive:",
+                    error
+                  );
+                  this.tryFetchImage(img, url);
+                });
+              return;
+            }
+          } catch (error) {
+            console.error(
+              "[CustomScrollManager] Error accessing book archive:",
+              error
+            );
+          }
+        }
       }
     }
+
+    // If we couldn't get the image from the book's resources, try fetching it
+    this.tryFetchImage(img, url);
+  }
+
+  // Helper method to try fetching an image from a URL
+  tryFetchImage(img, url) {
+    // First try: Use the book's archive directly
+    if (this.book && this.book.archive) {
+      // Try different variations of the path
+      const pathVariations = [
+        url,
+        url.startsWith("/") ? url.substring(1) : url,
+        !url.startsWith("/") ? "/" + url : url,
+      ];
+
+      // If we have a current section, try to resolve relative to it
+      if (this.currentSection && this.currentSection.href) {
+        const sectionUrl = this.currentSection.href;
+        const baseUrl = sectionUrl.substring(
+          0,
+          sectionUrl.lastIndexOf("/") + 1
+        );
+        pathVariations.push(baseUrl + url);
+      }
+
+      // Try each path variation
+      for (const path of pathVariations) {
+        try {
+          const archiveUrl = path.startsWith("/") ? path : "/" + path;
+          console.log(
+            "[CustomScrollManager] Trying to get image from archive:",
+            archiveUrl
+          );
+
+          // Use the same method that EPUB.js uses in paginated mode
+          if (typeof this.book.archive.getBlob === "function") {
+            this.book.archive
+              .getBlob(archiveUrl)
+              .then((blob) => {
+                if (blob) {
+                  const blobUrl = URL.createObjectURL(blob);
+                  console.log(
+                    "[CustomScrollManager] Created blob URL from archive:",
+                    blobUrl
+                  );
+
+                  if (img.tagName.toLowerCase() === "img") {
+                    img.src = blobUrl;
+                  } else {
+                    img.setAttribute("xlink:href", blobUrl);
+                    img.setAttribute("href", blobUrl);
+                  }
+
+                  // Store the blob URL for cleanup later
+                  img.dataset.blobUrl = blobUrl;
+                  return;
+                }
+              })
+              .catch((error) => {
+                console.log(
+                  "[CustomScrollManager] Error getting blob from archive:",
+                  error
+                );
+              });
+          }
+        } catch (error) {
+          console.log(
+            "[CustomScrollManager] Error accessing archive for path:",
+            path,
+            error
+          );
+        }
+      }
+    }
+
+    // Second try: Try to fetch the image from a URL
+
+    // If the URL starts with a slash, try to use the book's base URL
+    let fetchUrl = url;
+    if (fetchUrl.startsWith("/") && this.book && this.book.url) {
+      const bookUrl = this.book.url;
+      const baseUrl = bookUrl.substring(0, bookUrl.lastIndexOf("/") + 1);
+      fetchUrl = baseUrl + fetchUrl.substring(1);
+    }
+
+    // For relative URLs that don't start with a slash, try to resolve them relative to the current section
+    if (
+      !fetchUrl.startsWith("/") &&
+      !fetchUrl.startsWith("http") &&
+      this.currentSection &&
+      this.currentSection.href
+    ) {
+      const sectionUrl = this.currentSection.href;
+      const baseUrl = sectionUrl.substring(0, sectionUrl.lastIndexOf("/") + 1);
+      fetchUrl = baseUrl + fetchUrl;
+    }
+
+    console.log(
+      "[CustomScrollManager] Trying to fetch image from URL:",
+      fetchUrl
+    );
+
+    // Try to fetch the image and convert it to a blob URL
+    fetch(fetchUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch image: ${response.status} ${response.statusText}`
+          );
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        console.log(
+          "[CustomScrollManager] Created blob URL for image via fetch:",
+          blobUrl
+        );
+
+        if (img.tagName.toLowerCase() === "img") {
+          img.src = blobUrl;
+        } else {
+          img.setAttribute("xlink:href", blobUrl);
+          img.setAttribute("href", blobUrl);
+        }
+
+        // Store the blob URL for cleanup later
+        img.dataset.blobUrl = blobUrl;
+      })
+      .catch((error) => {
+        console.error("[CustomScrollManager] Error fetching image:", error);
+
+        // Last resort: try to use the original URL directly
+        if (img.tagName.toLowerCase() === "img") {
+          // For images in EPUB, try a different approach - use the book's base URL
+          if (this.book && this.book.path) {
+            const bookPath = this.book.path;
+            const imagePath = url.startsWith("/") ? url.substring(1) : url;
+            const fullPath = `${bookPath}/${imagePath}`;
+            console.log("[CustomScrollManager] Trying direct path:", fullPath);
+            img.src = fullPath;
+          } else {
+            // Just use a placeholder image as a last resort
+            console.log(
+              "[CustomScrollManager] Using placeholder image as last resort"
+            );
+            img.src =
+              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f0f0f0'/%3E%3Cpath d='M30,40 L70,40 L70,60 L30,60 Z' fill='%23ccc'/%3E%3Ctext x='50' y='55' font-family='Arial' font-size='10' text-anchor='middle' fill='%23999'%3EImage%3C/text%3E%3C/svg%3E";
+          }
+        } else {
+          img.setAttribute("xlink:href", url);
+          img.setAttribute("href", url);
+        }
+      });
   }
 
   setSavedProgress(progress) {

@@ -140,14 +140,14 @@ class CustomScrollManager {
           this.container = document.createElement("div");
           this.container.id = "viewer-fallback";
           this.container.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100vh;
-                z-index: 1000;
-                background: white;
-              `;
+                   position: fixed;
+                   top: 0;
+                   left: 0;
+                   width: 100%;
+                   height: 100vh;
+                   z-index: 1000;
+                   background: white;
+                 `;
           document.body.appendChild(this.container);
           console.log(
             "[CustomScrollManager] Created fallback viewer container"
@@ -162,15 +162,15 @@ class CustomScrollManager {
         // Set up container styles - use main page scroll, full width
         // Override any existing epub-viewer CSS that might interfere
         this.container.style.cssText = `
-              width: 100vw !important;
-              max-width: 100vw !important;
-              min-height: 100vh;
-              overflow: visible !important;
-              position: relative !important;
-              background: #ffffff;
-              margin: 0 !important;
-              padding: 0 !important;
-            `;
+                 width: 100vw !important;
+                 max-width: 100vw !important;
+                 min-height: 100vh;
+                 overflow: visible !important;
+                 position: relative !important;
+                 background: #ffffff;
+                 margin: 0 !important;
+                 padding: 0 !important;
+               `;
 
         // Ensure body can scroll
         document.body.style.overflow = "auto";
@@ -178,12 +178,12 @@ class CustomScrollManager {
         // Create sections container
         this.sectionsContainer = document.createElement("div");
         this.sectionsContainer.style.cssText = `
-              width: 100%;
-              min-height: 100vh;
-              position: relative;
-              display: flex;
-              flex-direction: column;
-            `;
+                 width: 100%;
+                 min-height: 100vh;
+                 position: relative;
+                 display: flex;
+                 flex-direction: column;
+               `;
         this.container.appendChild(this.sectionsContainer);
 
         // Add event listeners - use window scroll instead of container scroll
@@ -549,14 +549,14 @@ class CustomScrollManager {
       const backgroundColor = this.isDarkTheme ? "#1a1a1a" : "#ffffff";
 
       sectionElement.style.cssText = `
-            width: 100vw;
-            margin: 0;
-            padding: ${padding};
-            background: ${backgroundColor};
-            min-height: 100vh;
-            box-sizing: border-box;
-            position: relative;
-          `;
+               width: 100vw;
+               margin: 0;
+               padding: ${padding};
+               background: ${backgroundColor};
+               min-height: 100vh;
+               box-sizing: border-box;
+               position: relative;
+             `;
 
       // Clone the section content
       const content = section.item.document.body.cloneNode(true);
@@ -717,14 +717,14 @@ class CustomScrollManager {
 
     // Apply clean typography styles to the content with high specificity
     content.style.cssText = `
-          font-family: ${fontFamily} !important;
-          line-height: 1.7 !important;
-          color: ${textColor} !important;
-          font-size: ${fontSize} !important;
-          text-align: justify !important;
-          hyphens: auto !important;
-          word-spacing: 0.1em !important;
-        `;
+             font-family: ${fontFamily} !important;
+             line-height: 1.7 !important;
+             color: ${textColor} !important;
+             font-size: ${fontSize} !important;
+             text-align: justify !important;
+             hyphens: auto !important;
+             word-spacing: 0.1em !important;
+           `;
 
     // Create a style element to override global styles with high specificity
     const existingStyle = content.querySelector("#scroll-font-override");
@@ -735,30 +735,30 @@ class CustomScrollManager {
     const style = document.createElement("style");
     style.id = "scroll-font-override";
     style.textContent = `
-       /* High specificity overrides for global font styles */
-       * {
-         font-family: ${fontFamily} !important;
-       }
-       
-       /* Override global font declarations with maximum specificity */
-       html *, html body *, body *, div *, p *, span *, 
-       h1 *, h2 *, h3 *, h4 *, h5 *, h6 * {
-         font-family: ${fontFamily} !important;
-       }
-       
-       /* Ensure all text elements use the correct font */
-       body, div, p, span, h1, h2, h3, h4, h5, h6, 
-       article, section, main, aside, header, footer {
-         font-family: ${fontFamily} !important;
-         font-size: ${fontSize} !important;
-         line-height: 1.7 !important;
-       }
-       
-       /* Override any CSS custom properties that might interfere */
-       :root {
-         --font-sans: ${fontFamily} !important;
-       }
-     `;
+          /* High specificity overrides for global font styles */
+          * {
+            font-family: ${fontFamily} !important;
+          }
+          
+          /* Override global font declarations with maximum specificity */
+          html *, html body *, body *, div *, p *, span *, 
+          h1 *, h2 *, h3 *, h4 *, h5 *, h6 * {
+            font-family: ${fontFamily} !important;
+          }
+          
+          /* Ensure all text elements use the correct font */
+          body, div, p, span, h1, h2, h3, h4, h5, h6, 
+          article, section, main, aside, header, footer {
+            font-family: ${fontFamily} !important;
+            font-size: ${fontSize} !important;
+            line-height: 1.7 !important;
+          }
+          
+          /* Override any CSS custom properties that might interfere */
+          :root {
+            --font-sans: ${fontFamily} !important;
+          }
+        `;
 
     // Insert the style at the beginning of the content
     content.insertBefore(style, content.firstChild);
@@ -767,88 +767,88 @@ class CustomScrollManager {
     const paragraphs = content.querySelectorAll("p");
     paragraphs.forEach((p) => {
       p.style.cssText = `
-            font-family: ${fontFamily} !important;
-            font-size: ${fontSize} !important;
-            line-height: 1.7 !important;
-            margin: 0 0 1.5em 0 !important;
-            text-indent: 1.5em !important;
-            color: ${textColor} !important;
-          `;
+               font-family: ${fontFamily} !important;
+               font-size: ${fontSize} !important;
+               line-height: 1.7 !important;
+               margin: 0 0 1.5em 0 !important;
+               text-indent: 1.5em !important;
+               color: ${textColor} !important;
+             `;
     });
 
     // Style headings with epubjs-inspired styling
     const headings = content.querySelectorAll("h1, h2, h3, h4, h5, h6");
     headings.forEach((heading) => {
       heading.style.cssText = `
-            font-family: ${fontFamily} !important;
-            font-weight: normal !important;
-            margin: 0 !important;
-            line-height: 1.2 !important;
-            color: ${textColor} !important;
-            text-indent: 0 !important;
-            text-align: center !important;
-            letter-spacing: 0.02em !important;
-          `;
+               font-family: ${fontFamily} !important;
+               font-weight: normal !important;
+               margin: 0 !important;
+               line-height: 1.2 !important;
+               color: ${textColor} !important;
+               text-indent: 0 !important;
+               text-align: center !important;
+               letter-spacing: 0.02em !important;
+             `;
     });
 
     // Style h1 specifically (Chapter titles)
     const h1s = content.querySelectorAll("h1");
     h1s.forEach((h1) => {
       h1.style.cssText += `
-            font-family: ${fontFamily} !important;
-            font-size: 2.5em !important;
-            font-weight: 300 !important;
-            margin: 3em 0 2.5em 0 !important;
-            padding: 0 2em !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.1em !important;
-            border-bottom: 1px solid ${
-              this.isDarkTheme ? "#444" : "#e0e0e0"
-            } !important;
-            padding-bottom: 0.5em !important;
-            page-break-before: always !important;
-            color: ${textColor} !important;
-          `;
+               font-family: ${fontFamily} !important;
+               font-size: 2.5em !important;
+               font-weight: 300 !important;
+               margin: 3em 0 2.5em 0 !important;
+               padding: 0 2em !important;
+               text-transform: uppercase !important;
+               letter-spacing: 0.1em !important;
+               border-bottom: 1px solid ${
+                 this.isDarkTheme ? "#444" : "#e0e0e0"
+               } !important;
+               padding-bottom: 0.5em !important;
+               page-break-before: always !important;
+               color: ${textColor} !important;
+             `;
     });
 
     // Style h2 (Section titles)
     const h2s = content.querySelectorAll("h2");
     h2s.forEach((h2) => {
       h2.style.cssText += `
-            font-family: ${fontFamily} !important;
-            font-size: 1.8em !important;
-            font-weight: 400 !important;
-            margin: 2.5em 0 1.5em 0 !important;
-            text-transform: capitalize !important;
-            letter-spacing: 0.05em !important;
-            color: ${textColor} !important;
-          `;
+               font-family: ${fontFamily} !important;
+               font-size: 1.8em !important;
+               font-weight: 400 !important;
+               margin: 2.5em 0 1.5em 0 !important;
+               text-transform: capitalize !important;
+               letter-spacing: 0.05em !important;
+               color: ${textColor} !important;
+             `;
     });
 
     // Style h3 (Subsection titles)
     const h3s = content.querySelectorAll("h3");
     h3s.forEach((h3) => {
       h3.style.cssText += `
-            font-family: ${fontFamily} !important;
-            font-size: 1.4em !important;
-            font-weight: 500 !important;
-            margin: 2em 0 1em 0 !important;
-            text-align: left !important;
-            color: ${textColor} !important;
-          `;
+               font-family: ${fontFamily} !important;
+               font-size: 1.4em !important;
+               font-weight: 500 !important;
+               margin: 2em 0 1em 0 !important;
+               text-align: left !important;
+               color: ${textColor} !important;
+             `;
     });
 
     // Handle images and SVGs
     const images = content.querySelectorAll("img, image");
     images.forEach((img) => {
       img.style.cssText = `
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 2em auto;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          `;
+               max-width: 100%;
+               height: auto;
+               display: block;
+               margin: 2em auto;
+               border-radius: 4px;
+               box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+             `;
 
       // Get the source URL - handle both img src and SVG image xlink:href
       const originalSrc =
@@ -938,13 +938,13 @@ class CustomScrollManager {
     const blockquotes = content.querySelectorAll("blockquote");
     blockquotes.forEach((bq) => {
       bq.style.cssText = `
-            margin: 2em 0;
-            padding: 1em 2em;
-            border-left: 4px solid #e0e0e0;
-            background: #f9f9f9;
-            font-style: italic;
-            text-indent: 0;
-          `;
+               margin: 2em 0;
+               padding: 1em 2em;
+               border-left: 4px solid #e0e0e0;
+               background: #f9f9f9;
+               font-style: italic;
+               text-indent: 0;
+             `;
     });
 
     // Handle emphasis and strong
@@ -962,10 +962,10 @@ class CustomScrollManager {
     const links = content.querySelectorAll("a");
     links.forEach((link) => {
       link.style.cssText = `
-            color: #3498db;
-            text-decoration: none;
-            border-bottom: 1px solid #3498db;
-          `;
+               color: #3498db;
+               text-decoration: none;
+               border-bottom: 1px solid #3498db;
+             `;
 
       // Prevent default link behavior and handle internally
       link.addEventListener("click", (e) => {
@@ -985,17 +985,17 @@ class CustomScrollManager {
     const lists = content.querySelectorAll("ul, ol");
     lists.forEach((list) => {
       list.style.cssText = `
-            margin: 1.5em 0;
-            padding-left: 2em;
-          `;
+               margin: 1.5em 0;
+               padding-left: 2em;
+             `;
     });
 
     const listItems = content.querySelectorAll("li");
     listItems.forEach((li) => {
       li.style.cssText = `
-            margin: 0.5em 0;
-            line-height: 1.6;
-          `;
+               margin: 0.5em 0;
+               line-height: 1.6;
+             `;
     });
 
     // Handle styles
@@ -1318,29 +1318,68 @@ class CustomScrollManager {
         `[CustomScrollManager] Attempting to scroll to CFI position: ${cfi} in section ${section.href}`
       );
 
-      // Extract the path within the section from CFI
-      // Our CFI format: /6/28[id13]!/4 (where 4 = 4% progress within section)
-      // Standard CFI format: epubcfi(/6/28!/4[uU2Ci5JrsMB9SCXArRaivn6]/2/2[chapter006]/2[CCNA3-8ac6e65c3820459188e26d146b38ce2a]/1:0)
+      // Handle different CFI formats
+      let percentage = 0;
 
-      let pathMatch = cfi.match(/!\/(.+)$/);
-      if (!pathMatch) {
+      // Case 1: Our custom CFI format: /6/28[id13]!/4 (where 4 = 4% progress within section)
+      let customMatch = cfi.match(/\/6\/\d+\[id\d+\]!\/(\d+)$/);
+      if (customMatch) {
+        percentage = parseInt(customMatch[1], 10);
         console.log(
-          `[CustomScrollManager] No path found in CFI, scrolling to section start`
+          `[CustomScrollManager] Detected custom CFI format with percentage: ${percentage}%`
         );
-        return false;
       }
 
-      const path = pathMatch[1];
-      console.log(`[CustomScrollManager] Extracted path from CFI: ${path}`);
-
-      // Check if this is a simple percentage-based CFI (our format)
-      const percentageMatch = path.match(/^(\d+)$/);
-      if (percentageMatch) {
-        const percentage = parseInt(percentageMatch[1], 10);
+      // Case 2: Standard ePub.js CFI format with percentage in saved progress
+      else if (
+        cfi.startsWith("epubcfi(") &&
+        this.savedProgress &&
+        this.savedProgress.percentage
+      ) {
+        percentage = Math.round(this.savedProgress.percentage * 100);
         console.log(
-          `[CustomScrollManager] Detected percentage-based CFI: ${percentage}%`
+          `[CustomScrollManager] Using percentage from saved progress: ${percentage}%`
         );
+      }
 
+      // Case 3: Extract percentage from standard CFI if possible
+      else {
+        // Extract the path within the section from CFI
+        // Standard CFI format: epubcfi(/6/28!/4[uU2Ci5JrsMB9SCXArRaivn6]/2/2[chapter006]/2[CCNA3-8ac6e65c3820459188e26d146b38ce2a]/1:0)
+        let pathMatch = cfi.match(/!\/(.+)$/);
+        if (pathMatch) {
+          const path = pathMatch[1];
+          console.log(`[CustomScrollManager] Extracted path from CFI: ${path}`);
+
+          // Try to estimate percentage from character position in standard CFI
+          const charPosMatch = path.match(/\/\d+\/\d+:(\d+)/);
+          if (charPosMatch) {
+            const charPos = parseInt(charPosMatch[1], 10);
+            // Estimate percentage based on character position
+            // Assume average section length of 5000 characters
+            const estimatedSectionLength = 5000;
+            percentage = Math.min(
+              100,
+              Math.round((charPos / estimatedSectionLength) * 100)
+            );
+            console.log(
+              `[CustomScrollManager] Estimated percentage from character position: ${percentage}%`
+            );
+          }
+
+          // Simple percentage in path
+          const percentageMatch = path.match(/^(\d+)$/);
+          if (percentageMatch) {
+            percentage = parseInt(percentageMatch[1], 10);
+            console.log(
+              `[CustomScrollManager] Detected percentage-based path: ${percentage}%`
+            );
+          }
+        }
+      }
+
+      // If we have a percentage, scroll to that position
+      if (percentage > 0) {
         // Calculate scroll position within the section based on percentage
         const sectionRect = section.element.getBoundingClientRect();
         const sectionTop = sectionRect.top + window.pageYOffset;
@@ -1367,95 +1406,1509 @@ class CustomScrollManager {
         }, 1000);
 
         return true;
-      }
-
-      // Handle complex CFI paths (standard format)
-      // Look for elements with IDs mentioned in the CFI
-      const idMatches = path.match(/\[([^\]]+)\]/g);
-      if (idMatches) {
-        for (const idMatch of idMatches) {
-          const id = idMatch.slice(1, -1); // Remove brackets
-          console.log(
-            `[CustomScrollManager] Looking for element with ID: ${id}`
-          );
-
-          const elementById = section.element.querySelector(
-            `#${CSS.escape(id)}`
-          );
-          if (elementById) {
-            console.log(`[CustomScrollManager] Found element by ID: ${id}`);
-            this.isScrolling = true;
-            elementById.scrollIntoView({ behavior: "auto", block: "start" });
-
-            setTimeout(() => {
-              this.isScrolling = false;
-            }, 1000);
-
-            return true;
-          }
-        }
-      }
-
-      // Fallback: try to parse numeric path (e.g., "2/2/2/1:0")
-      const numericPath = path.replace(/\[[^\]]*\]/g, ""); // Remove ID brackets
-      const pathParts = numericPath
-        .split("/")
-        .filter((part) => part && !part.includes(":"));
-
-      if (pathParts.length > 0) {
+      } else {
         console.log(
-          `[CustomScrollManager] Trying numeric path navigation: ${pathParts.join(
-            "/"
-          )}`
+          `[CustomScrollManager] No percentage found in CFI, scrolling to section start`
         );
 
-        let currentElement = section.element;
-        for (const part of pathParts) {
-          const index = parseInt(part, 10);
-          if (isNaN(index) || index < 1) continue;
+        // Scroll to the top of the section
+        const sectionRect = section.element.getBoundingClientRect();
+        const sectionTop = sectionRect.top + window.pageYOffset;
 
-          // Navigate to child element (CFI uses 1-based indexing)
-          const children = Array.from(currentElement.children);
-          if (children.length >= index) {
-            currentElement = children[index - 1];
-            console.log(
-              `[CustomScrollManager] Navigated to child ${index - 1}`
-            );
-          } else {
-            console.log(
-              `[CustomScrollManager] Child ${index} not found, stopping navigation`
-            );
-            break;
-          }
-        }
+        this.isScrolling = true;
+        window.scrollTo({
+          top: sectionTop,
+          behavior: "auto",
+        });
 
-        if (currentElement !== section.element) {
-          console.log(
-            `[CustomScrollManager] Scrolling to element found via path navigation`
-          );
-          this.isScrolling = true;
-          currentElement.scrollIntoView({ behavior: "auto", block: "start" });
+        setTimeout(() => {
+          this.isScrolling = false;
+        }, 1000);
 
-          setTimeout(() => {
-            this.isScrolling = false;
-          }, 1000);
-
-          return true;
-        }
+        return false;
       }
-
-      console.log(
-        `[CustomScrollManager] Could not resolve CFI to specific element, using section start`
-      );
-      return false;
     } catch (error) {
-      console.error(
-        `[CustomScrollManager] Error resolving CFI position:`,
-        error
-      );
+      console.error(`[CustomScrollManager] Error scrolling to CFI:`, error);
       return false;
     }
   }
+
+  async init() {
+    try {
+      // Wait for book to be ready
+      if (this.book && this.book.ready) {
+        await this.book.ready;
+      } else {
+        console.warn("[CustomScrollManager] Book not ready, waiting...");
+        // Wait a bit and try again
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (!this.book || !this.book.spine) {
+          throw new Error("Book not properly loaded");
+        }
+      }
+
+      // Get all sections from spine
+      this.sections = this.book.spine.spineItems.map((item, index) => ({
+        index,
+        href: item.href,
+        id: item.id,
+        item,
+        element: null,
+        height: 0,
+        loaded: false,
+        content: null,
+      }));
+
+      console.log(
+        "[CustomScrollManager] Initialized with",
+        this.sections.length,
+        "sections"
+      );
+      console.log(
+        "[CustomScrollManager] Section hrefs:",
+        this.sections.map((s) => s.href)
+      );
+
+      // Set up container and wait for it to be ready
+      await this.setupContainer();
+
+      // Load initial sections (this will check for saved progress)
+      await this.loadInitialSections();
+
+      // Trigger initial location update
+      setTimeout(() => {
+        if (this.onSectionChangeCallback) {
+          const location = this.getCurrentLocation();
+          if (location) {
+            console.log(
+              "[CustomScrollManager] Initial location update:",
+              location
+            );
+            this.onSectionChangeCallback(location);
+          }
+        }
+      }, 500);
+    } catch (error) {
+      console.error("[CustomScrollManager] Initialization failed:", error);
+      throw error;
+    }
+  }
+
+  setupContainer() {
+    return new Promise((resolve, reject) => {
+      // Find the main container with retries
+      let retries = 0;
+      const maxRetries = 5; // Reduced retries - render as soon as available
+
+      const findContainer = () => {
+        // Try to get container from ref first, then fallback to getElementById
+        const refContainer =
+          this.options.viewerRef && this.options.viewerRef.current;
+        const idContainer = document.getElementById("viewer");
+
+        console.log(
+          `[CustomScrollManager] Looking for container - ref: ${!!refContainer}, id: ${!!idContainer}`
+        );
+
+        this.container = refContainer || idContainer;
+        if (!this.container && retries < maxRetries) {
+          retries++;
+          console.log(
+            `[CustomScrollManager] Viewer container not found, retry ${retries}/${maxRetries}`
+          );
+          setTimeout(findContainer, 50); // Reduced delay for faster rendering
+          return;
+        }
+
+        if (!this.container) {
+          console.warn(
+            "[CustomScrollManager] Viewer container not found, creating fallback"
+          );
+          // Create a fallback container
+          this.container = document.createElement("div");
+          this.container.id = "viewer-fallback";
+          this.container.style.cssText = `
+                   position: fixed;
+                   top: 0;
+                   left: 0;
+                   width: 100%;
+                   height: 100vh;
+                   z-index: 1000;
+                   background: white;
+                 `;
+          document.body.appendChild(this.container);
+          console.log(
+            "[CustomScrollManager] Created fallback viewer container"
+          );
+        }
+
+        console.log("[CustomScrollManager] Found viewer container");
+
+        // Clear existing content
+        this.container.innerHTML = "";
+
+        // Set up container styles - use main page scroll, full width
+        // Override any existing epub-viewer CSS that might interfere
+        this.container.style.cssText = `
+                 width: 100vw !important;
+                 max-width: 100vw !important;
+                 min-height: 100vh;
+                 overflow: visible !important;
+                 position: relative !important;
+                 background: #ffffff;
+                 margin: 0 !important;
+                 padding: 0 !important;
+               `;
+
+        // Ensure body can scroll
+        document.body.style.overflow = "auto";
+
+        // Create sections container
+        this.sectionsContainer = document.createElement("div");
+        this.sectionsContainer.style.cssText = `
+                 width: 100%;
+                 min-height: 100vh;
+                 position: relative;
+                 display: flex;
+                 flex-direction: column;
+               `;
+        this.container.appendChild(this.sectionsContainer);
+
+        // Add event listeners - use window scroll instead of container scroll
+        window.addEventListener("scroll", this.onScroll, { passive: true });
+        window.addEventListener("resize", this.onResize);
+
+        console.log("[CustomScrollManager] Container setup complete");
+        resolve();
+      };
+
+      findContainer();
+    });
+  }
+
+  async loadInitialSections() {
+    // Load the first few sections for initial scrolling
+    if (this.sections.length > 0) {
+      // Check if we have saved progress to determine which section to load first
+      let startSectionIndex = 0;
+      let hasSavedProgress = false;
+
+      // If we have saved progress, prioritize loading that section first
+      if (this.savedProgress) {
+        console.log(
+          "[CustomScrollManager] Checking saved progress for initial load:",
+          this.savedProgress
+        );
+
+        // PRIORITY 1: Use direct section index if available (most reliable)
+        if (this.savedProgress.sectionIndex !== undefined) {
+          startSectionIndex = this.savedProgress.sectionIndex;
+          hasSavedProgress = true;
+          console.log(
+            "[CustomScrollManager] Using direct section index for initial load:",
+            startSectionIndex
+          );
+        }
+        // PRIORITY 2: Use CFI if available
+        else if (this.savedProgress.cfi) {
+          try {
+            console.log(
+              "[CustomScrollManager] Trying to extract section from CFI:",
+              this.savedProgress.cfi
+            );
+
+            const cfi = this.savedProgress.cfi;
+
+            // Extract spine position from CFI
+            // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0) or /6/8[id3]!/2
+            let match = cfi.match(/(?:epubcfi\()?\/6\/(\d+)(?:\[[^\]]*\])?!/);
+            if (match && match[1]) {
+              const spinePos = parseInt(match[1], 10);
+              console.log(
+                "[CustomScrollManager] Extracted spine position from CFI:",
+                spinePos
+              );
+              console.log(
+                "[CustomScrollManager] Total sections:",
+                this.sections.length
+              );
+
+              // Try different calculation methods for spine position to section index
+              // Method 1: (spinePos - 2) / 2 (original)
+              startSectionIndex = Math.floor((spinePos - 2) / 2);
+              console.log(
+                "[CustomScrollManager] Method 1 result:",
+                startSectionIndex
+              );
+
+              // Method 2: spinePos / 2 - 1 (alternative)
+              if (
+                startSectionIndex < 0 ||
+                startSectionIndex >= this.sections.length
+              ) {
+                startSectionIndex = Math.floor(spinePos / 2) - 1;
+                console.log(
+                  "[CustomScrollManager] Method 2 result:",
+                  startSectionIndex
+                );
+              }
+
+              // Method 3: spinePos - 4 (for books where spine starts at 4)
+              if (
+                startSectionIndex < 0 ||
+                startSectionIndex >= this.sections.length
+              ) {
+                startSectionIndex = spinePos - 4;
+                console.log(
+                  "[CustomScrollManager] Method 3 result:",
+                  startSectionIndex
+                );
+              }
+
+              // Method 4: Direct mapping (spinePos - 2)
+              if (
+                startSectionIndex < 0 ||
+                startSectionIndex >= this.sections.length
+              ) {
+                startSectionIndex = spinePos - 2;
+                console.log(
+                  "[CustomScrollManager] Method 4 result:",
+                  startSectionIndex
+                );
+              }
+
+              // Validate and clamp to valid range
+              if (startSectionIndex < 0) {
+                startSectionIndex = 0;
+              } else if (startSectionIndex >= this.sections.length) {
+                startSectionIndex = this.sections.length - 1;
+              }
+
+              hasSavedProgress = true;
+              console.log(
+                "[CustomScrollManager] Calculated section index:",
+                startSectionIndex
+              );
+              console.log(
+                "[CustomScrollManager] Section href:",
+                this.sections[startSectionIndex]?.href
+              );
+            }
+
+            // Fallback: try to use the CFI directly with the book's API
+            if (!hasSavedProgress) {
+              try {
+                console.log(
+                  "[CustomScrollManager] Using book API to resolve CFI"
+                );
+                const section = this.book.spine.get(cfi);
+                if (section) {
+                  startSectionIndex = section.index;
+                  hasSavedProgress = true;
+                  console.log(
+                    "[CustomScrollManager] Found section from CFI:",
+                    startSectionIndex
+                  );
+                }
+              } catch (spineError) {
+                console.error(
+                  "[CustomScrollManager] Error using spine.get():",
+                  spineError
+                );
+              }
+            }
+          } catch (error) {
+            console.error("[CustomScrollManager] Error processing CFI:", error);
+          }
+        }
+        // PRIORITY 3: Check location object
+        else if (this.savedProgress.location) {
+          if (
+            typeof this.savedProgress.location === "object" &&
+            typeof this.savedProgress.location.index === "number"
+          ) {
+            startSectionIndex = this.savedProgress.location.index;
+            hasSavedProgress = true;
+            console.log(
+              "[CustomScrollManager] Using saved index for initial load:",
+              startSectionIndex
+            );
+          } else if (typeof this.savedProgress.location === "string") {
+            // Try to get section index from string location
+            try {
+              // First try direct spine lookup
+              const section = this.book.spine.get(this.savedProgress.location);
+              if (section) {
+                startSectionIndex = section.index;
+                hasSavedProgress = true;
+                console.log(
+                  "[CustomScrollManager] Found section from string location:",
+                  startSectionIndex
+                );
+              } else {
+                // Try by href
+                const spinePosition =
+                  this.book.spine.spineByHref[this.savedProgress.location] ||
+                  this.book.spine.spineByHref[
+                    this.savedProgress.location.split("#")[0]
+                  ];
+
+                if (spinePosition) {
+                  startSectionIndex = spinePosition.index;
+                  hasSavedProgress = true;
+                  console.log(
+                    "[CustomScrollManager] Using spine position for initial load:",
+                    startSectionIndex
+                  );
+                }
+              }
+            } catch (error) {
+              console.error(
+                "[CustomScrollManager] Error getting section from location string:",
+                error
+              );
+            }
+          }
+        }
+        // PRIORITY 4: Use percentage as last resort
+        else if (this.savedProgress.percentage !== undefined) {
+          // Use percentage to determine starting section
+          startSectionIndex = Math.floor(
+            this.savedProgress.percentage * this.sections.length
+          );
+          hasSavedProgress = true;
+          console.log(
+            "[CustomScrollManager] Using percentage for initial load:",
+            startSectionIndex
+          );
+        }
+
+        // Ensure valid index
+        startSectionIndex = Math.max(
+          0,
+          Math.min(this.sections.length - 1, startSectionIndex)
+        );
+        console.log(
+          "[CustomScrollManager] Final validated start section index:",
+          startSectionIndex
+        );
+      }
+
+      // Load the starting section first
+      await this.loadSection(startSectionIndex);
+      this.currentSectionIndex = startSectionIndex;
+
+      console.log(
+        `[CustomScrollManager] Loaded initial section ${startSectionIndex}`
+      );
+
+      // Load surrounding sections for scrolling
+      const preloadCount = this.options.preloadCount;
+
+      // Calculate range of sections to load
+      const startIndex = Math.max(0, startSectionIndex - preloadCount);
+      const endIndex = Math.min(
+        this.sections.length - 1,
+        startSectionIndex + preloadCount
+      );
+
+      console.log(
+        `[CustomScrollManager] Loading surrounding sections from ${startIndex} to ${endIndex}`
+      );
+
+      // Load sections before the current section
+      for (let i = startSectionIndex - 1; i >= startIndex; i--) {
+        try {
+          if (!this.sections[i].loaded) {
+            await this.loadSection(i);
+            console.log(`[CustomScrollManager] Loaded previous section ${i}`);
+          }
+        } catch (error) {
+          console.error(
+            `[CustomScrollManager] Failed to load section ${i}:`,
+            error
+          );
+        }
+      }
+
+      // Load sections after the current section
+      for (let i = startSectionIndex + 1; i <= endIndex; i++) {
+        try {
+          if (!this.sections[i].loaded) {
+            await this.loadSection(i);
+            console.log(`[CustomScrollManager] Loaded next section ${i}`);
+          }
+        } catch (error) {
+          console.error(
+            `[CustomScrollManager] Failed to load section ${i}:`,
+            error
+          );
+        }
+      }
+
+      // If we didn't have saved progress, load a few more sections at the beginning
+      if (!hasSavedProgress) {
+        const additionalSectionsToLoad = Math.min(
+          preloadCount + 1,
+          this.sections.length
+        );
+        console.log(
+          `[CustomScrollManager] Loading additional ${additionalSectionsToLoad} sections from beginning`
+        );
+
+        for (let i = 1; i < additionalSectionsToLoad; i++) {
+          if (!this.sections[i].loaded) {
+            try {
+              await this.loadSection(i);
+              console.log(
+                `[CustomScrollManager] Loaded additional section ${i}`
+              );
+            } catch (error) {
+              console.error(
+                `[CustomScrollManager] Failed to load additional section ${i}:`,
+                error
+              );
+            }
+          }
+        }
+      }
+    }
+
+    this.updateLayout();
+  }
+
+  async loadSection(index) {
+    if (index < 0 || index >= this.sections.length) return;
+
+    const section = this.sections[index];
+    if (section.loaded) {
+      console.log(
+        "[CustomScrollManager] Section",
+        index,
+        "already loaded, skipping"
+      );
+      return;
+    }
+
+    // Check if section is already being loaded to prevent double loading
+    if (section.loading) {
+      console.log(
+        "[CustomScrollManager] Section",
+        index,
+        "already loading, skipping"
+      );
+      return;
+    }
+
+    // Mark as loading
+    section.loading = true;
+
+    try {
+      console.log("[CustomScrollManager] Loading section", index, section.href);
+
+      // Load the section content
+      console.log(
+        `[CustomScrollManager] Calling section.item.load for section ${index}`
+      );
+
+      // Ensure the section has access to the book object
+      if (section.item && !section.item.book) {
+        section.item.book = this.book;
+      }
+
+      await section.item.load(this.book.load.bind(this.book));
+      console.log(
+        `[CustomScrollManager] Section ${index} content loaded successfully`
+      );
+
+      // Check if we have valid content
+      if (!section.item.document || !section.item.document.body) {
+        console.warn("[CustomScrollManager] Section has no content:", index);
+        return;
+      }
+
+      // Create section element
+      const sectionElement = document.createElement("div");
+      sectionElement.className = "epub-section";
+
+      // Responsive padding based on screen size - full width
+      const isMobile = window.innerWidth <= 768;
+      const padding = isMobile ? "40px 5vw" : "60px 15vw";
+      const backgroundColor = this.isDarkTheme ? "#1a1a1a" : "#ffffff";
+
+      sectionElement.style.cssText = `
+               width: 100vw;
+               margin: 0;
+               padding: ${padding};
+               background: ${backgroundColor};
+               min-height: 100vh;
+               box-sizing: border-box;
+               position: relative;
+             `;
+
+      // Clone the section content
+      const content = section.item.document.body.cloneNode(true);
+
+      // Process the content (handle images, links, etc.)
+      this.processContent(content, section);
+
+      // Add content to section element
+      sectionElement.appendChild(content);
+
+      // Insert section in correct order
+      if (this.sectionsContainer) {
+        this.insertSectionInOrder(sectionElement, index);
+      } else {
+        console.error("[CustomScrollManager] Sections container not found");
+        return;
+      }
+
+      // Update section data
+      section.element = sectionElement;
+      section.content = content;
+      section.loaded = true;
+      section.loading = false; // Clear loading flag
+
+      // Cache the loaded section
+      this.loadedSections.set(index, section);
+
+      // Calculate height after content is added
+      setTimeout(() => {
+        const height = sectionElement.offsetHeight;
+        console.log(
+          `[CustomScrollManager] Section ${index} height calculated: ${height}px`
+        );
+        if (height > 0) {
+          section.height = height;
+          this.updateLayout();
+        } else {
+          console.warn(
+            `[CustomScrollManager] Section ${index} has zero height, retrying...`
+          );
+          // Retry height calculation
+          setTimeout(() => {
+            const retryHeight = sectionElement.offsetHeight;
+            console.log(
+              `[CustomScrollManager] Section ${index} retry height: ${retryHeight}px`
+            );
+            if (retryHeight > 0) {
+              section.height = retryHeight;
+              this.updateLayout();
+            }
+          }, 200);
+        }
+      }, 100);
+    } catch (error) {
+      console.error(
+        "[CustomScrollManager] Failed to load section",
+        index,
+        error
+      );
+      section.loading = false; // Clear loading flag on error
+    }
+  }
+
+  insertSectionInOrder(sectionElement, index) {
+    // Set a data attribute to track the section index
+    sectionElement.setAttribute("data-section-index", index);
+
+    // Check if section with this index already exists
+    const existingSections = Array.from(this.sectionsContainer.children);
+    const duplicateSection = existingSections.find(
+      (el) => parseInt(el.getAttribute("data-section-index")) === index
+    );
+
+    if (duplicateSection) {
+      console.warn(
+        "[CustomScrollManager] Section",
+        index,
+        "already exists in DOM, removing duplicate"
+      );
+      duplicateSection.remove();
+    }
+
+    // Find the correct position to insert this section
+    // Get fresh list after potential duplicate removal
+    const currentSections = Array.from(this.sectionsContainer.children);
+    let insertPosition = null;
+
+    for (let i = 0; i < currentSections.length; i++) {
+      const existingIndex = parseInt(
+        currentSections[i].getAttribute("data-section-index")
+      );
+      if (existingIndex > index) {
+        insertPosition = currentSections[i];
+        break;
+      }
+    }
+
+    if (insertPosition) {
+      this.sectionsContainer.insertBefore(sectionElement, insertPosition);
+    } else {
+      this.sectionsContainer.appendChild(sectionElement);
+    }
+
+    console.log(
+      "[CustomScrollManager] Inserted section",
+      index,
+      "in correct order"
+    );
+  }
+
+  // Get font family with proper fallbacks
+  getFontWithFallback(fontName) {
+    switch (fontName) {
+      case "Alegreya":
+        return "'Alegreya', Georgia, serif";
+      case "Lora":
+        return "'Lora', Georgia, serif";
+      case "Atkinson":
+        return "'Atkinson', Arial, sans-serif";
+      case "Bookerly":
+        return "'Bookerly', Georgia, serif";
+      case "Literata":
+        return "'Literata', Georgia, serif";
+      case "Merriweather":
+        return "'Merriweather', Georgia, serif";
+      case "Open Sans":
+        return "'Open Sans', Arial, sans-serif";
+      case "Roboto":
+        return "'Roboto', Arial, sans-serif";
+      case "Source Sans Pro":
+        return "'Source Sans Pro', Arial, sans-serif";
+      case "PT Serif":
+        return "'PT Serif', Georgia, serif";
+      case "Crimson Text":
+        return "'Crimson Text', Georgia, serif";
+      case "Libre Baskerville":
+        return "'Libre Baskerville', Georgia, serif";
+      default:
+        return `'${fontName}', Georgia, serif`;
+    }
+  }
+
+  processContent(content, section) {
+    // Use user preferences for font settings
+    const baseFontSize = window.innerWidth <= 768 ? 24 : 28; // Base size in px (increased for better readability)
+    const fontSize = `${baseFontSize * this.userFontSize}px`;
+    const fontFamily = this.getFontWithFallback(this.userFontFamily);
+    const textColor = this.isDarkTheme ? "#e0e0e0" : "#2c3e50";
+
+    console.log("[CustomScrollManager] processContent with font settings:", {
+      userFontFamily: this.userFontFamily,
+      fontFamily,
+      fontSize,
+      baseFontSize,
+      userFontSize: this.userFontSize,
+      sectionIndex: section ? section.index : "unknown",
+    });
+
+    // Apply clean typography styles to the content with high specificity
+    content.style.cssText = `
+             font-family: ${fontFamily} !important;
+             line-height: 1.7 !important;
+             color: ${textColor} !important;
+             font-size: ${fontSize} !important;
+             text-align: justify !important;
+             hyphens: auto !important;
+             word-spacing: 0.1em !important;
+           `;
+
+    // Create a style element to override global styles with high specificity
+    const existingStyle = content.querySelector("#scroll-font-override");
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+
+    const style = document.createElement("style");
+    style.id = "scroll-font-override";
+    style.textContent = `
+          /* High specificity overrides for global font styles */
+          * {
+            font-family: ${fontFamily} !important;
+          }
+          
+          /* Override global font declarations with maximum specificity */
+          html *, html body *, body *, div *, p *, span *, 
+          h1 *, h2 *, h3 *, h4 *, h5 *, h6 * {
+            font-family: ${fontFamily} !important;
+          }
+          
+          /* Ensure all text elements use the correct font */
+          body, div, p, span, h1, h2, h3, h4, h5, h6, 
+          article, section, main, aside, header, footer {
+            font-family: ${fontFamily} !important;
+            font-size: ${fontSize} !important;
+            line-height: 1.7 !important;
+          }
+          
+          /* Override any CSS custom properties that might interfere */
+          :root {
+            --font-sans: ${fontFamily} !important;
+          }
+        `;
+
+    // Insert the style at the beginning of the content
+    content.insertBefore(style, content.firstChild);
+
+    // Style paragraphs with high specificity
+    const paragraphs = content.querySelectorAll("p");
+    paragraphs.forEach((p) => {
+      p.style.cssText = `
+               font-family: ${fontFamily} !important;
+               font-size: ${fontSize} !important;
+               line-height: 1.7 !important;
+               margin: 0 0 1.5em 0 !important;
+               text-indent: 1.5em !important;
+               color: ${textColor} !important;
+             `;
+    });
+
+    // Style headings with epubjs-inspired styling
+    const headings = content.querySelectorAll("h1, h2, h3, h4, h5, h6");
+    headings.forEach((heading) => {
+      heading.style.cssText = `
+               font-family: ${fontFamily} !important;
+               font-weight: normal !important;
+               margin: 0 !important;
+               line-height: 1.2 !important;
+               color: ${textColor} !important;
+               text-indent: 0 !important;
+               text-align: center !important;
+               letter-spacing: 0.02em !important;
+             `;
+    });
+
+    // Style h1 specifically (Chapter titles)
+    const h1s = content.querySelectorAll("h1");
+    h1s.forEach((h1) => {
+      h1.style.cssText += `
+               font-family: ${fontFamily} !important;
+               font-size: 2.5em !important;
+               font-weight: 300 !important;
+               margin: 3em 0 2.5em 0 !important;
+               padding: 0 2em !important;
+               text-transform: uppercase !important;
+               letter-spacing: 0.1em !important;
+               border-bottom: 1px solid ${
+                 this.isDarkTheme ? "#444" : "#e0e0e0"
+               } !important;
+               padding-bottom: 0.5em !important;
+               page-break-before: always !important;
+               color: ${textColor} !important;
+             `;
+    });
+
+    // Style h2 (Section titles)
+    const h2s = content.querySelectorAll("h2");
+    h2s.forEach((h2) => {
+      h2.style.cssText += `
+               font-family: ${fontFamily} !important;
+               font-size: 1.8em !important;
+               font-weight: 400 !important;
+               margin: 2.5em 0 1.5em 0 !important;
+               text-transform: capitalize !important;
+               letter-spacing: 0.05em !important;
+               color: ${textColor} !important;
+             `;
+    });
+
+    // Style h3 (Subsection titles)
+    const h3s = content.querySelectorAll("h3");
+    h3s.forEach((h3) => {
+      h3.style.cssText += `
+               font-family: ${fontFamily} !important;
+               font-size: 1.4em !important;
+               font-weight: 500 !important;
+               margin: 2em 0 1em 0 !important;
+               text-align: left !important;
+               color: ${textColor} !important;
+             `;
+    });
+
+    // Handle images and SVGs
+    const images = content.querySelectorAll("img, image");
+    images.forEach((img) => {
+      img.style.cssText = `
+               max-width: 100%;
+               height: auto;
+               display: block;
+               margin: 2em auto;
+               border-radius: 4px;
+               box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+             `;
+
+      // Get the source URL - handle both img src and SVG image xlink:href
+      const originalSrc =
+        img.getAttribute("src") ||
+        img.getAttribute("xlink:href") ||
+        img.getAttribute("href");
+
+      // Handle relative URLs - convert to blob URLs like epubjs does
+      if (
+        originalSrc &&
+        !originalSrc.startsWith("http") &&
+        !originalSrc.startsWith("data:") &&
+        !originalSrc.startsWith("blob:")
+      ) {
+        try {
+          console.log("[CustomScrollManager] Processing image:", originalSrc);
+
+          // Try to get the image as a blob using epubjs archive methods
+          let blobPromise = null;
+
+          // Ensure the URL starts with a slash for epubjs archive
+          let archiveUrl = originalSrc;
+          if (!archiveUrl.startsWith("/")) {
+            archiveUrl = "/" + archiveUrl;
+          }
+
+          console.log(
+            "[CustomScrollManager] Trying to get blob for:",
+            archiveUrl
+          );
+
+          if (typeof this.book.archive.getBlob === "function") {
+            blobPromise = this.book.archive.getBlob(archiveUrl);
+          } else if (typeof this.book.archive.request === "function") {
+            blobPromise = this.book.archive.request(archiveUrl, "blob");
+          }
+
+          if (blobPromise) {
+            blobPromise
+              .then((blob) => {
+                if (blob) {
+                  const blobUrl = URL.createObjectURL(blob);
+                  console.log(
+                    "[CustomScrollManager] Created blob URL for image:",
+                    blobUrl
+                  );
+
+                  // Set the appropriate attribute based on element type
+                  if (img.tagName.toLowerCase() === "img") {
+                    img.src = blobUrl;
+                  } else {
+                    // For SVG image elements
+                    img.setAttribute("xlink:href", blobUrl);
+                    img.setAttribute("href", blobUrl);
+                  }
+
+                  // Store the blob URL for cleanup later
+                  img.dataset.blobUrl = blobUrl;
+                } else {
+                  console.warn(
+                    "[CustomScrollManager] getBlob returned null/undefined for:",
+                    archiveUrl
+                  );
+                  this.fallbackImageResolution(img, originalSrc);
+                }
+              })
+              .catch((error) => {
+                console.error(
+                  "[CustomScrollManager] Error creating blob URL for image:",
+                  error
+                );
+                this.fallbackImageResolution(img, originalSrc);
+              });
+          } else {
+            console.warn(
+              "[CustomScrollManager] No suitable blob method found, using resolve fallback"
+            );
+            this.fallbackImageResolution(img, originalSrc);
+          }
+        } catch (error) {
+          console.error("[CustomScrollManager] Error processing image:", error);
+        }
+      }
+    });
+
+    // Handle blockquotes
+    const blockquotes = content.querySelectorAll("blockquote");
+    blockquotes.forEach((bq) => {
+      bq.style.cssText = `
+               margin: 2em 0;
+               padding: 1em 2em;
+               border-left: 4px solid #e0e0e0;
+               background: #f9f9f9;
+               font-style: italic;
+               text-indent: 0;
+             `;
+    });
+
+    // Handle emphasis and strong
+    const emphasis = content.querySelectorAll("em, i");
+    emphasis.forEach((em) => {
+      em.style.fontStyle = "italic";
+    });
+
+    const strong = content.querySelectorAll("strong, b");
+    strong.forEach((str) => {
+      str.style.fontWeight = "600";
+    });
+
+    // Handle links
+    const links = content.querySelectorAll("a");
+    links.forEach((link) => {
+      link.style.cssText = `
+               color: #3498db;
+               text-decoration: none;
+               border-bottom: 1px solid #3498db;
+             `;
+
+      // Prevent default link behavior and handle internally
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const href = link.getAttribute("href");
+        if (href && href.startsWith("#")) {
+          // Internal link within section
+          this.scrollToAnchor(href.substring(1), section);
+        } else if (href) {
+          // Link to another section
+          this.navigateToHref(href);
+        }
+      });
+    });
+
+    // Handle lists
+    const lists = content.querySelectorAll("ul, ol");
+    lists.forEach((list) => {
+      list.style.cssText = `
+               margin: 1.5em 0;
+               padding-left: 2em;
+             `;
+    });
+
+    const listItems = content.querySelectorAll("li");
+    listItems.forEach((li) => {
+      li.style.cssText = `
+               margin: 0.5em 0;
+               line-height: 1.6;
+             `;
+    });
+
+    // Handle styles
+    const styles = content.querySelectorAll("style");
+    styles.forEach((style) => {
+      // Keep styles but scope them to prevent conflicts
+      style.textContent = this.scopeCSS(style.textContent, section.index);
+    });
+  }
+
+  scopeCSS(css, sectionIndex) {
+    // Simple CSS scoping to prevent conflicts between sections
+    return css.replace(/([^{}]+){/g, (match, selector) => {
+      const scopedSelector = selector
+        .split(",")
+        .map((s) => `.epub-section:nth-child(${sectionIndex + 1}) ${s.trim()}`)
+        .join(", ");
+      return `${scopedSelector} {`;
+    });
+  }
+
+  updateLayout() {
+    // Recalculate positions and update any necessary layout
+    let totalHeight = 0;
+    this.sections.forEach((section) => {
+      if (section.loaded && section.element) {
+        section.offsetTop = totalHeight;
+        totalHeight += section.height + this.options.sectionGap;
+      }
+    });
+
+    console.log(
+      `[CustomScrollManager] Layout updated - total height: ${totalHeight}px, loaded sections: ${
+        this.sections.filter((s) => s.loaded).length
+      }`
+    );
+
+    // Ensure the container has enough height for scrolling
+    if (this.sectionsContainer && totalHeight > 0) {
+      this.sectionsContainer.style.minHeight = `${totalHeight}px`;
+      console.log(
+        `[CustomScrollManager] Set container min-height to ${totalHeight}px`
+      );
+    }
+  }
+
+  onScroll() {
+    if (this.isScrolling) return;
+
+    this.scrollPosition =
+      window.pageYOffset || document.documentElement.scrollTop;
+
+    // Debounce scroll handling with different timeouts for different actions
+    clearTimeout(this.scrollTimeout);
+    clearTimeout(this.locationTimeout);
+
+    // Quick location update for responsive chapter tracking
+    this.locationTimeout = setTimeout(() => {
+      if (this.onSectionChangeCallback) {
+        const location = this.getCurrentLocation();
+        if (location) {
+          console.log("[SCROLL_MANAGER] Location update:", {
+            index: location.index,
+            href: location.href,
+            percentage: location.percentage?.toFixed(2),
+          });
+          this.onSectionChangeCallback(location);
+        }
+      }
+    }, 50); // Fast update for location tracking
+
+    // Slower update for section loading/unloading
+    this.scrollTimeout = setTimeout(() => {
+      this.handleScroll();
+    }, 150); // Slower for performance-heavy operations
+  }
+
+  handleScroll() {
+    // Determine current section based on scroll position
+    const currentSection = this.getCurrentSection();
+    const sectionChanged = currentSection !== this.currentSectionIndex;
+
+    if (sectionChanged) {
+      this.currentSectionIndex = currentSection;
+      this.onSectionChange(currentSection);
+    }
+
+    // Load nearby sections if needed
+    this.loadNearbySection();
+
+    // Unload distant sections to save memory
+    this.unloadDistantSections();
+  }
+
+  getCurrentSection() {
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const viewportHeight = window.innerHeight;
+    const viewportCenter = scrollTop + viewportHeight / 2;
+
+    for (let i = 0; i < this.sections.length; i++) {
+      const section = this.sections[i];
+      if (section.loaded && section.element) {
+        const rect = section.element.getBoundingClientRect();
+        const sectionTop = rect.top + scrollTop;
+        const sectionBottom = sectionTop + section.height;
+
+        if (viewportCenter >= sectionTop && viewportCenter <= sectionBottom) {
+          return i;
+        }
+      }
+    }
+
+    return this.currentSectionIndex;
+  }
+
+  async loadNearbySection() {
+    const { preloadCount } = this.options;
+
+    // Load sections ahead
+    for (let i = 1; i <= preloadCount; i++) {
+      const nextIndex = this.currentSectionIndex + i;
+      if (
+        nextIndex < this.sections.length &&
+        !this.sections[nextIndex].loaded
+      ) {
+        await this.loadSection(nextIndex);
+      }
+    }
+
+    // Load sections behind
+    for (let i = 1; i <= preloadCount; i++) {
+      const prevIndex = this.currentSectionIndex - i;
+      if (prevIndex >= 0 && !this.sections[prevIndex].loaded) {
+        await this.loadSection(prevIndex);
+      }
+    }
+  }
+
+  unloadDistantSections() {
+    const { preloadCount } = this.options;
+    const maxDistance = preloadCount + 2; // Keep a bit more than preload
+
+    this.sections.forEach((section, index) => {
+      const distance = Math.abs(index - this.currentSectionIndex);
+      if (distance > maxDistance && section.loaded) {
+        this.unloadSection(index);
+      }
+    });
+  }
+
+  unloadSection(index) {
+    const section = this.sections[index];
+    if (!section.loaded) return;
+
+    console.log("[CustomScrollManager] Unloading section", index);
+
+    if (section.element && section.element.parentNode) {
+      section.element.parentNode.removeChild(section.element);
+    }
+
+    section.element = null;
+    section.content = null;
+    section.loaded = false;
+    section.height = 0;
+
+    this.loadedSections.delete(index);
+  }
+
+  onSectionChange(sectionIndex) {
+    console.log("[CustomScrollManager] Section changed to", sectionIndex);
+
+    // Emit section change event
+    if (this.onSectionChangeCallback) {
+      const section = this.sections[sectionIndex];
+
+      // Generate a basic CFI for the section using the same method as getCurrentLocation
+      const cfi = this.generateBasicCFI(sectionIndex, 0); // Start of section
+      console.log("[CustomScrollManager] Generated CFI for section:", cfi);
+
+      this.onSectionChangeCallback({
+        index: sectionIndex,
+        href: section.href,
+        id: section.id,
+        cfi: cfi,
+        start: {
+          index: sectionIndex,
+          href: section.href,
+          cfi: cfi,
+        },
+      });
+    }
+  }
+
+  onResize() {
+    // Recalculate layout on resize
+    setTimeout(() => {
+      this.sections.forEach((section) => {
+        if (section.loaded && section.element) {
+          section.height = section.element.offsetHeight;
+        }
+      });
+      this.updateLayout();
+    }, 100);
+  }
+
+  // Public API methods
+
+  async navigateToSection(index, instant = false) {
+    if (index < 0 || index >= this.sections.length) return;
+
+    // Load the target section if not loaded
+    if (!this.sections[index].loaded) {
+      await this.loadSection(index);
+    }
+
+    const section = this.sections[index];
+    if (section.element) {
+      this.isScrolling = true;
+
+      // Use instant scrolling for progress restoration
+      const behavior = instant ? "instant" : "smooth";
+      section.element.scrollIntoView({ behavior, block: "start" });
+
+      setTimeout(
+        () => {
+          this.isScrolling = false;
+        },
+        instant ? 100 : 1000
+      );
+
+      this.currentSectionIndex = index;
+      this.onSectionChange(index);
+    }
+  }
+
+  async navigateToHref(href, instant = false) {
+    console.log("[CustomScrollManager] Navigating to href:", href);
+
+    // Clean the href - remove any hash fragments for section matching
+    const cleanHref = href.split("#")[0];
+
+    // Find section by href (try exact match first, then partial match)
+    let sectionIndex = this.sections.findIndex((s) => s.href === href);
+
+    if (sectionIndex < 0) {
+      // Try matching without hash
+      sectionIndex = this.sections.findIndex((s) => s.href === cleanHref);
+    }
+
+    if (sectionIndex < 0) {
+      // Try partial matching (in case of different base paths)
+      sectionIndex = this.sections.findIndex(
+        (s) => s.href.endsWith(cleanHref) || cleanHref.endsWith(s.href)
+      );
+    }
+
+    if (sectionIndex >= 0) {
+      console.log(
+        "[CustomScrollManager] Found section at index:",
+        sectionIndex
+      );
+      await this.navigateToSection(sectionIndex, instant);
+
+      // If there's a hash fragment, try to scroll to that anchor
+      const hashFragment = href.split("#")[1];
+      if (hashFragment) {
+        setTimeout(
+          () => {
+            this.scrollToAnchor(hashFragment, this.sections[sectionIndex]);
+          },
+          instant ? 100 : 500
+        ); // Shorter wait for instant navigation
+      }
+    } else {
+      console.warn("[CustomScrollManager] Section not found for href:", href);
+      console.log(
+        "[CustomScrollManager] Available sections:",
+        this.sections.map((s) => s.href)
+      );
+    }
+  }
+
+  scrollToAnchor(anchorId, section) {
+    if (!section.element) return;
+
+    try {
+      // Escape special characters in CSS selectors
+      const escapedId = CSS.escape(anchorId);
+      const anchor = section.element.querySelector(
+        `#${escapedId}, [name="${escapedId}"]`
+      );
+
+      if (anchor) {
+        this.isScrolling = true;
+        anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        setTimeout(() => {
+          this.isScrolling = false;
+        }, 1000);
+      } else {
+        console.warn("[CustomScrollManager] Anchor not found:", anchorId);
+      }
+    } catch (error) {
+      console.warn(
+        "[CustomScrollManager] Invalid anchor selector:",
+        anchorId,
+        error
+      );
+    }
+  }
+
+  /**
+   * Resolve CFI to exact position within a section and scroll to it
+   */
+  scrollToCFIPosition(cfi, section) {
+    if (!section.element || !cfi) return false;
+
+    try {
+      console.log(
+        `[CustomScrollManager] Attempting to scroll to CFI position: ${cfi} in section ${section.href}`
+      );
+
+      // Handle different CFI formats
+      let percentage = 0;
+
+      // Case 1: Our custom CFI format: /6/28[id13]!/4 (where 4 = 4% progress within section)
+      let customMatch = cfi.match(/\/6\/\d+\[id\d+\]!\/(\d+)$/);
+      if (customMatch) {
+        percentage = parseInt(customMatch[1], 10);
+        console.log(
+          `[CustomScrollManager] Detected custom CFI format with percentage: ${percentage}%`
+        );
+      }
+
+      // Case 2: Standard ePub.js CFI format with percentage in saved progress
+      else if (
+        cfi.startsWith("epubcfi(") &&
+        this.savedProgress &&
+        this.savedProgress.percentage
+      ) {
+        percentage = Math.round(this.savedProgress.percentage * 100);
+        console.log(
+          `[CustomScrollManager] Using percentage from saved progress: ${percentage}%`
+        );
+      }
+
+      // Case 3: Extract percentage from standard CFI if possible
+      else {
+        // Extract the path within the section from CFI
+        // Standard CFI format: epubcfi(/6/28!/4[uU2Ci5JrsMB9SCXArRaivn6]/2/2[chapter006]/2[CCNA3-8ac6e65c3820459188e26d146b38ce2a]/1:0)
+        let pathMatch = cfi.match(/!\/(.+)$/);
+        if (pathMatch) {
+          const path = pathMatch[1];
+          console.log(`[CustomScrollManager] Extracted path from CFI: ${path}`);
+
+          // Try to estimate percentage from character position in standard CFI
+          const charPosMatch = path.match(/\/\d+\/\d+:(\d+)/);
+          if (charPosMatch) {
+            const charPos = parseInt(charPosMatch[1], 10);
+            // Estimate percentage based on character position
+            // Assume average section length of 5000 characters
+            const estimatedSectionLength = 5000;
+            percentage = Math.min(
+              100,
+              Math.round((charPos / estimatedSectionLength) * 100)
+            );
+            console.log(
+              `[CustomScrollManager] Estimated percentage from character position: ${percentage}%`
+            );
+          }
+
+          // Simple percentage in path
+          const percentageMatch = path.match(/^(\d+)$/);
+          if (percentageMatch) {
+            percentage = parseInt(percentageMatch[1], 10);
+            console.log(
+              `[CustomScrollManager] Detected percentage-based path: ${percentage}%`
+            );
+          }
+        }
+      }
+
+      // If we have a percentage, scroll to that position
+      if (percentage > 0) {
+        // Calculate scroll position within the section based on percentage
+        const sectionRect = section.element.getBoundingClientRect();
+        const sectionTop = sectionRect.top + window.pageYOffset;
+        const sectionHeight = section.height || sectionRect.height;
+        const targetPosition = sectionTop + (sectionHeight * percentage) / 100;
+
+        console.log(
+          `[CustomScrollManager] Scrolling to ${percentage}% within section:`,
+          {
+            sectionTop,
+            sectionHeight,
+            targetPosition,
+          }
+        );
+
+        this.isScrolling = true;
+        window.scrollTo({
+          top: targetPosition,
+          behavior: "auto",
+        });
+
+        setTimeout(() => {
+          this.isScrolling = false;
+        }, 1000);
+
+        return true;
+      } else {
+        console.log(
+          `[CustomScrollManager] No percentage found in CFI, scrolling to section start`
+        );
+
+        // Scroll to the top of the section
+        const sectionRect = section.element.getBoundingClientRect();
+        const sectionTop = sectionRect.top + window.pageYOffset;
+
+        this.isScrolling = true;
+        window.scrollTo({
+          top: sectionTop,
+          behavior: "auto",
+        });
+
+        setTimeout(() => {
+          this.isScrolling = false;
+        }, 1000);
+
+        return false;
+      }
+    } catch (error) {
+      console.error(`[CustomScrollManager] Error scrolling to CFI:`, error);
+      return false;
+    }
+  }
+
+  /* 
+    // This method is not being used and was causing syntax errors
+    findElementAtPosition(idMatches, section) {
+      if (idMatches) {
+          for (const idMatch of idMatches) {
+            const id = idMatch.slice(1, -1); // Remove brackets
+            console.log(
+              `[CustomScrollManager] Looking for element with ID: ${id}`
+            );
+  
+            const elementById = section.element.querySelector(
+              `#${CSS.escape(id)}`
+            );
+            if (elementById) {
+              console.log(`[CustomScrollManager] Found element by ID: ${id}`);
+              this.isScrolling = true;
+              elementById.scrollIntoView({ behavior: "auto", block: "start" });
+  
+              setTimeout(() => {
+                this.isScrolling = false;
+              }, 1000);
+  
+              return true;
+            }
+          }
+        }
+  
+        // Fallback: try to parse numeric path (e.g., "2/2/2/1:0")
+        const numericPath = path.replace(/\[[^\]]*\]/g, ""); // Remove ID brackets
+        const pathParts = numericPath
+          .split("/")
+          .filter((part) => part && !part.includes(":"));
+  
+        if (pathParts.length > 0) {
+          console.log(
+            `[CustomScrollManager] Trying numeric path navigation: ${pathParts.join(
+              "/"
+            )}`
+          );
+  
+          let currentElement = section.element;
+          for (const part of pathParts) {
+            const index = parseInt(part, 10);
+            if (isNaN(index) || index < 1) continue;
+  
+            // Navigate to child element (CFI uses 1-based indexing)
+            const children = Array.from(currentElement.children);
+            if (children.length >= index) {
+              currentElement = children[index - 1];
+              console.log(
+                `[CustomScrollManager] Navigated to child ${index - 1}`
+              );
+            } else {
+              console.log(
+                `[CustomScrollManager] Child ${index} not found, stopping navigation`
+              );
+              break;
+            }
+          }
+  
+          if (currentElement !== section.element) {
+            console.log(
+              `[CustomScrollManager] Scrolling to element found via path navigation`
+            );
+            this.isScrolling = true;
+            currentElement.scrollIntoView({ behavior: "auto", block: "start" });
+  
+            setTimeout(() => {
+              this.isScrolling = false;
+            }, 1000);
+  
+            return true;
+          }
+        }
+  
+        console.log(
+          `[CustomScrollManager] Could not resolve CFI to specific element, using section start`
+        );
+        return false;
+      } catch (error) {
+        console.error(
+          `[CustomScrollManager] Error resolving CFI position:`,
+          error
+        );
+        return false;
+      }
+    }
+    */
 
   next() {
     // Scroll down by viewport height
@@ -1834,7 +3287,77 @@ class CustomScrollManager {
       return;
     }
 
+    // Make sure font settings are applied before restoring position
+    // This ensures the layout is correct when calculating positions
+    if (this.userFontSize && this.userFontFamily) {
+      console.log(
+        "[CustomScrollManager] Ensuring font settings are applied before restoring position:",
+        {
+          fontSize: this.userFontSize,
+          fontFamily: this.userFontFamily,
+        }
+      );
+      this.applyFontSettings(this.userFontSize, this.userFontFamily);
+
+      // Small delay to ensure font settings are applied
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
     try {
+      // Check for custom CFI format first (highest priority)
+      if (
+        this.savedProgress.cfi &&
+        this.savedProgress.cfi.match(/\/6\/\d+\[id\d+\]!\/\d+$/)
+      ) {
+        console.log(
+          "[CustomScrollManager] Found custom CFI format:",
+          this.savedProgress.cfi
+        );
+
+        // Extract section index and percentage from custom CFI
+        const match = this.savedProgress.cfi.match(
+          /\/6\/(\d+)\[id(\d+)\]!\/(\d+)$/
+        );
+        if (match) {
+          const spinePos = parseInt(match[1], 10);
+          const sectionIndex = parseInt(match[2], 10);
+          const percentage = parseInt(match[3], 10);
+
+          console.log(
+            "[CustomScrollManager] Extracted from custom CFI - spinePos:",
+            spinePos,
+            "sectionIndex:",
+            sectionIndex,
+            "percentage:",
+            percentage
+          );
+
+          // Validate the section index
+          if (sectionIndex >= 0 && sectionIndex < this.sections.length) {
+            // First navigate to the section
+            await this.navigateToSection(sectionIndex, true);
+
+            // Wait for the section to load
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            // Then scroll to the percentage position within the section
+            const section = this.sections[sectionIndex];
+            if (section && section.loaded && section.element) {
+              console.log(
+                "[CustomScrollManager] Scrolling to percentage position:",
+                percentage,
+                "% within section",
+                sectionIndex
+              );
+
+              this.scrollToCFIPosition(this.savedProgress.cfi, section);
+            }
+
+            return; // Exit early if successful
+          }
+        }
+      }
+
       // PRIORITY 1: Use direct section index if available (most reliable)
       if (this.savedProgress.sectionIndex !== undefined) {
         const sectionIndex = this.savedProgress.sectionIndex;
@@ -1846,6 +3369,37 @@ class CustomScrollManager {
         // Validate the section index
         if (sectionIndex >= 0 && sectionIndex < this.sections.length) {
           await this.navigateToSection(sectionIndex, true);
+
+          // Check if we have a percentage to scroll to
+          if (this.savedProgress.percentage) {
+            // Wait for the section to load
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            // Calculate percentage within section (0-100)
+            const percentage = Math.round(this.savedProgress.percentage * 100);
+
+            // Create a custom CFI with the percentage
+            const customCfi = `/6/${
+              (sectionIndex + 1) * 2
+            }[id${sectionIndex}]!/${percentage}`;
+
+            console.log(
+              "[CustomScrollManager] Created custom CFI for percentage:",
+              customCfi
+            );
+
+            // Scroll to the percentage position
+            const section = this.sections[sectionIndex];
+            if (
+              section &&
+              section.loaded &&
+              section.element &&
+              percentage > 0
+            ) {
+              this.scrollToCFIPosition(customCfi, section);
+            }
+          }
+
           return; // Exit early if successful
         } else {
           console.warn(
@@ -2184,9 +3738,6 @@ class CustomScrollManager {
         );
       }
     }, 1500); // Increased delay to ensure sections are loaded
-  }
-  catch(error) {
-    console.error("[CustomScrollManager] Error restoring progress:", error);
 
     // Fallback: try to restore by percentage if other methods fail
     if (this.savedProgress.percentage !== undefined) {

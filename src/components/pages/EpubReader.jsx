@@ -28,6 +28,10 @@ import {
 import bookStorageDB from "../../utils/bookStorageDB";
 import { useCustomScrollManager } from "../EpubReaderComponents/CustomScrollManager";
 
+// Variables to track reading position across mode switches
+let currentSectionIndex = null;
+let currentProgressPercentage = null;
+
 // Utility function to detect mobile devices
 const isMobileDevice = () => {
   if (typeof window === "undefined") return false;
@@ -37,6 +41,56 @@ const isMobileDevice = () => {
       navigator.userAgent
     )
   );
+};
+
+// Helper function to find an element at a specific position in the document
+const findElementAtPosition = (rootElement, targetPosition) => {
+  // If no root element, return null
+  if (!rootElement) return null;
+
+  // Get all text nodes in the document
+  const textNodes = [];
+  const walker = document.createTreeWalker(
+    rootElement,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
+
+  let node;
+  while ((node = walker.nextNode())) {
+    // Skip empty text nodes
+    if (node.textContent.trim().length > 0) {
+      textNodes.push(node);
+    }
+  }
+
+  if (textNodes.length === 0) return rootElement;
+
+  // Find the closest text node to the target position
+  let closestNode = textNodes[0];
+  let closestDistance = Infinity;
+  let currentPosition = 0;
+
+  for (const node of textNodes) {
+    const rect = node.parentElement.getBoundingClientRect();
+    const nodePosition = rect.top;
+
+    // Calculate distance to target position
+    const distance = Math.abs(nodePosition - targetPosition);
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestNode = node;
+    }
+
+    // If we've passed the target position, we can stop searching
+    if (nodePosition > targetPosition && distance > closestDistance) {
+      break;
+    }
+  }
+
+  return closestNode.parentElement;
 };
 
 // Default reader settings
@@ -2942,10 +2996,24 @@ function EpubReader() {
 
   // Function to set up rendition event listeners
   const setupRenditionEventListeners = (rendition) => {
+    // Create a flag to track if this is the first location change after mode switch
+    // This helps prevent position reset when switching modes
+    const initialLocationChangeHandled = { value: false };
+
     // Track current chapter and update page info
     rendition.on("locationChanged", (location) => {
       console.log("[LOCATION] locationChanged event fired");
       console.log("[LOCATION] - Raw location object:", location);
+
+      // If this is the first location change after switching to paginated mode,
+      // and we're currently updating reading mode, ignore it to prevent position reset
+      if (isUpdatingReadingMode && !initialLocationChangeHandled.value) {
+        console.log(
+          "[LOCATION] Ignoring initial location change to prevent position reset"
+        );
+        initialLocationChangeHandled.value = true;
+        return;
+      }
 
       // Get the actual current location from rendition if the event location is incomplete
       let actualLocation = location;
@@ -3039,14 +3107,24 @@ function EpubReader() {
         readingMode,
         actualFlow,
         isNavigatingToChapter,
+        isUpdatingReadingMode,
       });
 
       // Use actual rendition flow instead of state to avoid sync issues
-      if (actualFlow === "paginated" && !isNavigatingToChapter) {
+      // Skip font application during reading mode updates to prevent position reset
+      if (
+        actualFlow === "paginated" &&
+        !isNavigatingToChapter &&
+        !isUpdatingReadingMode
+      ) {
         console.log(
           "[LOCATION] Applying font settings due to location change in paginated mode"
         );
         debouncedApplyFontSettings();
+      } else if (isUpdatingReadingMode) {
+        console.log(
+          "[LOCATION] Skipping font application during reading mode update to prevent position reset"
+        );
       } else if (actualFlow === "scrolled" && isNavigatingToChapter) {
         console.log(
           "[LOCATION] Skipping font application during chapter navigation in scrolled mode"
@@ -3088,6 +3166,9 @@ function EpubReader() {
 
     // Store current location before switching modes
     let currentLocation = null;
+    let currentSectionIndex = null;
+    let currentProgressPercentage = null;
+
     try {
       if (readingMode === "scrolled" && scrollCurrentLocation) {
         // Get location from scroll manager
@@ -3096,6 +3177,23 @@ function EpubReader() {
           "[READING_MODE] Got location from scroll manager:",
           currentLocation
         );
+
+        // Extract section index and percentage for better position tracking
+        if (currentLocation.index !== undefined) {
+          currentSectionIndex = currentLocation.index;
+          console.log(
+            "[READING_MODE] Extracted section index:",
+            currentSectionIndex
+          );
+        }
+
+        if (scrollReadingProgress !== undefined) {
+          currentProgressPercentage = Math.round(scrollReadingProgress * 100);
+          console.log(
+            "[READING_MODE] Extracted progress percentage:",
+            currentProgressPercentage
+          );
+        }
 
         // For switching to paginated mode, we need to ensure the location format is correct
         // The scroll manager might return a different format than what paginated expects
@@ -3143,6 +3241,57 @@ function EpubReader() {
           currentLocation
         );
 
+        // Extract section index and percentage from paginated mode
+        if (currentLocation && currentLocation.start) {
+          // Get percentage from location if available
+          if (currentLocation.start.percentage !== undefined) {
+            currentProgressPercentage = Math.round(
+              currentLocation.start.percentage * 100
+            );
+            console.log(
+              "[READING_MODE] Extracted percentage from location:",
+              currentProgressPercentage
+            );
+          } else if (
+            currentLocation.start.displayed &&
+            currentLocation.total &&
+            currentLocation.total.displayed
+          ) {
+            // Calculate percentage from page numbers
+            const currentPage = currentLocation.start.displayed.page;
+            const totalPages = currentLocation.total.displayed.pages;
+            if (currentPage && totalPages) {
+              currentProgressPercentage = Math.round(
+                (currentPage / totalPages) * 100
+              );
+              console.log(
+                "[READING_MODE] Calculated percentage from pages:",
+                currentProgressPercentage,
+                `(${currentPage}/${totalPages})`
+              );
+            }
+          }
+
+          // Extract section index from the CFI if possible
+          if (
+            currentLocation.start.cfi &&
+            typeof currentLocation.start.cfi === "string"
+          ) {
+            // Try to extract spine position from standard CFI format
+            const match =
+              currentLocation.start.cfi.match(/epubcfi\(\/6\/(\d+)!/);
+            if (match && match[1]) {
+              const spinePos = parseInt(match[1], 10);
+              // Calculate section index from spine position
+              currentSectionIndex = Math.floor((spinePos - 2) / 2);
+              console.log(
+                "[READING_MODE] Extracted section index from CFI:",
+                currentSectionIndex
+              );
+            }
+          }
+        }
+
         // For switching to scrolled mode, we might need to format the location differently
         if (newMode === "scrolled" && currentLocation) {
           // The scroll manager expects a location object with start/end
@@ -3153,6 +3302,16 @@ function EpubReader() {
               end: { cfi: currentLocation },
             };
           }
+
+          // Add section index and percentage if we have them
+          if (currentSectionIndex !== null) {
+            currentLocation.index = currentSectionIndex;
+          }
+
+          if (currentProgressPercentage !== null) {
+            currentLocation.percentage = currentProgressPercentage / 100; // Convert to decimal
+          }
+
           console.log(
             "[READING_MODE] Converted paginated location for scroll mode:",
             currentLocation
@@ -3179,10 +3338,49 @@ function EpubReader() {
             end: { cfi: currentCFI },
           };
         } else if (newMode === "paginated" && isCustomCFI) {
-          console.log(
-            "[READING_MODE] Custom CFI detected, skipping fallback for paginated mode"
-          );
-          currentLocation = null; // Will use default display
+          // Try to extract section index and percentage from custom CFI
+          const match = currentCFI.match(/\/6\/(\d+)\[id(\d+)\]!\/(\d+)/);
+          if (match) {
+            const spinePos = parseInt(match[1], 10);
+            currentSectionIndex = parseInt(match[2], 10);
+            currentProgressPercentage = parseInt(match[3], 10);
+
+            console.log(
+              "[READING_MODE] Extracted from custom CFI - spine:",
+              spinePos,
+              "section:",
+              currentSectionIndex,
+              "percentage:",
+              currentProgressPercentage
+            );
+
+            // Try to get a standard CFI for this section
+            try {
+              if (book && book.spine && book.spine.items[currentSectionIndex]) {
+                const section = book.spine.items[currentSectionIndex];
+                console.log(
+                  "[READING_MODE] Found section for index:",
+                  currentSectionIndex,
+                  "href:",
+                  section.href
+                );
+
+                // Use the section href as the location
+                currentLocation = section.href;
+              }
+            } catch (sectionError) {
+              console.error(
+                "[READING_MODE] Error finding section:",
+                sectionError
+              );
+              currentLocation = null; // Will use default display
+            }
+          } else {
+            console.log(
+              "[READING_MODE] Custom CFI detected, but couldn't parse it. Skipping fallback for paginated mode"
+            );
+            currentLocation = null; // Will use default display
+          }
         }
       }
     }
@@ -3197,9 +3395,23 @@ function EpubReader() {
       );
 
       // If we're coming from scrolled mode, ensure we have the correct location format
-      if (readingMode === "scrolled" && scrollReadingProgress !== undefined) {
+      if (readingMode === "scrolled") {
         // Update the current percentage to match the scroll reading progress
-        setCurrentPercentage(Math.round(scrollReadingProgress * 100));
+        if (scrollReadingProgress !== undefined) {
+          const percentage = Math.round(scrollReadingProgress * 100);
+          setCurrentPercentage(percentage);
+          currentProgressPercentage = percentage;
+          console.log(
+            "[READING_MODE] Updated current percentage from scroll manager:",
+            percentage
+          );
+        } else if (currentProgressPercentage !== null) {
+          setCurrentPercentage(currentProgressPercentage);
+          console.log(
+            "[READING_MODE] Using extracted progress percentage:",
+            currentProgressPercentage
+          );
+        }
 
         // If we have a location from the scroll manager, ensure it's properly formatted
         if (currentLocation && typeof currentLocation === "object") {
@@ -3208,11 +3420,40 @@ function EpubReader() {
             currentLocation
           );
 
+          // Save section index if available
+          if (
+            currentLocation.index !== undefined &&
+            currentSectionIndex === null
+          ) {
+            currentSectionIndex = currentLocation.index;
+            console.log(
+              "[READING_MODE] Saved section index from location:",
+              currentSectionIndex
+            );
+          }
+
           // Extract CFI if available
           if (currentLocation.start?.cfi) {
             currentLocation = currentLocation.start.cfi;
           } else if (currentLocation.cfi) {
             currentLocation = currentLocation.cfi;
+          } else if (currentSectionIndex !== null && book && book.spine) {
+            // If we have a section index but no CFI, try to use the section href
+            try {
+              const section = book.spine.items[currentSectionIndex];
+              if (section && section.href) {
+                currentLocation = section.href;
+                console.log(
+                  "[READING_MODE] Using section href as location:",
+                  currentLocation
+                );
+              }
+            } catch (error) {
+              console.error(
+                "[READING_MODE] Error getting section href:",
+                error
+              );
+            }
           }
 
           console.log(
@@ -3254,7 +3495,8 @@ function EpubReader() {
         );
         const newRendition = book.renderTo(viewerElement, renditionOptions);
 
-        // Apply font styles
+        // Apply font styles first before navigating to ensure correct layout
+        console.log("[READING_MODE] Applying font styles before navigation");
         injectFontDefinitions(newRendition);
 
         // Apply theme and font styles
@@ -3269,13 +3511,27 @@ function EpubReader() {
           },
         });
 
+        // Register a font loading handler to ensure fonts are fully loaded before positioning
+        newRendition.hooks.content.register((contents) => {
+          const doc = contents.document;
+          if (doc && doc.fonts && doc.fonts.ready) {
+            // Wait for fonts to be loaded
+            doc.fonts.ready.then(() => {
+              console.log("[READING_MODE] Fonts fully loaded in document");
+            });
+          }
+        });
+
+        // Wait for font styles to be applied
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
         console.log(
-          "[READING_MODE] About to display book at location:",
+          "[READING_MODE] Font styles applied, now displaying book at location:",
           currentLocation,
           "- Mode: paginated"
         );
 
-        // If we're coming from scrolled mode, use section index instead of CFI
+        // If we're coming from scrolled mode, use section index and progress information
         if (
           readingMode === "scrolled" &&
           scrollCurrentLocation &&
@@ -3294,7 +3550,204 @@ function EpubReader() {
                 "[READING_MODE] Navigating to section:",
                 section.href
               );
+
+              // Extract progress percentage from the custom CFI if available
+              let progressPercentage = 0;
+              if (scrollCurrentLocation.cfi) {
+                const cfiMatch = scrollCurrentLocation.cfi.match(/!\/(\d+)$/);
+                if (cfiMatch && cfiMatch[1]) {
+                  progressPercentage = parseInt(cfiMatch[1], 10);
+                  console.log(
+                    "[READING_MODE] Extracted progress percentage from CFI:",
+                    progressPercentage
+                  );
+                }
+              }
+
+              // If we couldn't get progress from CFI, try to get it from the location object
+              if (
+                progressPercentage === 0 &&
+                scrollCurrentLocation.percentage
+              ) {
+                progressPercentage = Math.round(
+                  scrollCurrentLocation.percentage * 100
+                );
+                console.log(
+                  "[READING_MODE] Using percentage from location object:",
+                  progressPercentage
+                );
+              }
+
+              // If we still don't have a percentage, use the current percentage state
+              if (progressPercentage === 0 && currentPercentage > 0) {
+                progressPercentage = currentPercentage;
+                console.log(
+                  "[READING_MODE] Using percentage from state:",
+                  progressPercentage
+                );
+              }
+
+              // First display the section
               await newRendition.display(section.href);
+
+              // Then, if we have progress information, try to navigate to the specific position
+              if (progressPercentage > 0) {
+                // Wait a bit for the content to load and be ready
+                await new Promise((resolve) => setTimeout(resolve, 100));
+
+                try {
+                  // Get the current document
+                  const contents = newRendition.getContents();
+                  if (contents && contents.length > 0) {
+                    const doc = contents[0].document;
+                    if (doc) {
+                      // Calculate the scroll position based on the document height and progress percentage
+                      const scrollTarget =
+                        (doc.body.scrollHeight * progressPercentage) / 100;
+                      console.log(
+                        "[READING_MODE] Scrolling to position:",
+                        scrollTarget,
+                        "out of",
+                        doc.body.scrollHeight
+                      );
+
+                      // Try multiple approaches to navigate to the position
+
+                      // Approach 1: Use the rendition's display method with a range
+                      try {
+                        // Create a range at the calculated position
+                        const range = doc.createRange();
+
+                        // Find a suitable element near the target position
+                        const elementAtPosition = findElementAtPosition(
+                          doc.body,
+                          scrollTarget
+                        );
+
+                        if (elementAtPosition) {
+                          console.log(
+                            "[READING_MODE] Found element at position:",
+                            elementAtPosition.tagName,
+                            elementAtPosition.textContent.substring(0, 30) +
+                              "..."
+                          );
+
+                          range.selectNodeContents(elementAtPosition);
+                          await newRendition.display(range);
+                          console.log(
+                            "[READING_MODE] Displayed range successfully"
+                          );
+                        }
+                      } catch (rangeError) {
+                        console.error(
+                          "[READING_MODE] Error using range navigation:",
+                          rangeError
+                        );
+                      }
+
+                      // Approach 2: Try to create a CFI at the target position
+                      if (
+                        book &&
+                        book.locations &&
+                        book.locations.percentageFromCfi
+                      ) {
+                        try {
+                          // Find all text nodes in the document
+                          const textNodes = [];
+                          const walker = doc.createTreeWalker(
+                            doc.body,
+                            NodeFilter.SHOW_TEXT,
+                            null,
+                            false
+                          );
+
+                          let node;
+                          while ((node = walker.nextNode())) {
+                            if (node.textContent.trim().length > 0) {
+                              textNodes.push(node);
+                            }
+                          }
+
+                          // Find the node closest to our target position
+                          if (textNodes.length > 0) {
+                            const targetIndex = Math.floor(
+                              textNodes.length * (progressPercentage / 100)
+                            );
+                            const targetNode =
+                              textNodes[
+                                Math.min(targetIndex, textNodes.length - 1)
+                              ];
+
+                            if (targetNode && targetNode.parentElement) {
+                              console.log(
+                                "[READING_MODE] Found target node at index:",
+                                targetIndex,
+                                "of",
+                                textNodes.length
+                              );
+
+                              // Create a range for this node
+                              const range = doc.createRange();
+                              range.selectNodeContents(targetNode);
+
+                              // Try to generate a CFI for this range
+                              const cfi = contents[0].cfiFromRange(range);
+                              if (cfi) {
+                                console.log(
+                                  "[READING_MODE] Generated CFI for target position:",
+                                  cfi
+                                );
+
+                                // Create a custom CFI with the percentage for future use
+                                const customCfi = `/6/${
+                                  (sectionIndex + 1) * 2
+                                }[id${sectionIndex}]!/${progressPercentage}`;
+                                console.log(
+                                  "[READING_MODE] Also created custom CFI:",
+                                  customCfi
+                                );
+
+                                // Display at the generated CFI
+                                await newRendition.display(cfi);
+                                console.log(
+                                  "[READING_MODE] Displayed at CFI successfully"
+                                );
+
+                                // Save both CFIs for future use
+                                setCurrentCFI(cfi);
+
+                                // Store the custom CFI in a data attribute for future reference
+                                if (
+                                  contents[0].document &&
+                                  contents[0].document.body
+                                ) {
+                                  contents[0].document.body.setAttribute(
+                                    "data-custom-cfi",
+                                    customCfi
+                                  );
+                                  console.log(
+                                    "[READING_MODE] Stored custom CFI in document body data attribute"
+                                  );
+                                }
+                              }
+                            }
+                          }
+                        } catch (cfiError) {
+                          console.error(
+                            "[READING_MODE] Error generating CFI:",
+                            cfiError
+                          );
+                        }
+                      }
+                    }
+                  }
+                } catch (positionError) {
+                  console.error(
+                    "[READING_MODE] Error navigating to position:",
+                    positionError
+                  );
+                }
+              }
             } else {
               console.log(
                 "[READING_MODE] Section index out of range, using beginning"
@@ -3333,14 +3786,29 @@ function EpubReader() {
         // Update state
         setRendition(newRendition);
 
-        // Ensure proper sizing after mode change
+        // Ensure proper sizing after mode change and prevent position reset
         setTimeout(() => {
+          // Resize the rendition
           newRendition.resize(`${window.innerWidth}px`, "90vh");
+
+          // Force the rendition to maintain the current location
+          if (currentLocation) {
+            console.log(
+              "[READING_MODE] Ensuring position is maintained after resize:",
+              currentLocation
+            );
+            newRendition.display(currentLocation).catch((err) => {
+              console.error("[READING_MODE] Error maintaining position:", err);
+            });
+          }
+
+          // Update page info
           updatePageInfo(newRendition, book);
+
           // Reset the updating flags after everything is complete
           setIsUpdatingReadingMode(false);
           setIsNavigatingToChapter(false);
-        }, 100);
+        }, 300);
 
         console.log("Successfully recreated rendition with new reading mode");
       } catch (error) {
@@ -3371,10 +3839,18 @@ function EpubReader() {
       }
 
       // If we have a current location, save it for the scroll manager to restore
-      if (currentLocation) {
+      if (
+        currentLocation ||
+        currentSectionIndex !== null ||
+        currentProgressPercentage !== null
+      ) {
         console.log(
           "[READING_MODE] Saving location for scroll manager:",
-          currentLocation
+          currentLocation,
+          "Section index:",
+          currentSectionIndex,
+          "Progress percentage:",
+          currentProgressPercentage
         );
 
         // Get the current CFI from the rendition
@@ -3399,10 +3875,28 @@ function EpubReader() {
           }
         }
 
+        // If we have a section index but no CFI, try to create a custom CFI
+        if (
+          !cfi &&
+          currentSectionIndex !== null &&
+          currentProgressPercentage !== null
+        ) {
+          // Create a custom CFI with the section index and percentage
+          cfi = `/6/${
+            (currentSectionIndex + 1) * 2
+          }[id${currentSectionIndex}]!/${currentProgressPercentage}`;
+          console.log(
+            "[READING_MODE] Created custom CFI from section index and percentage:",
+            cfi
+          );
+        }
+
         console.log("[READING_MODE] Current CFI for scroll manager:", cfi);
 
         // Try to extract the section index from the CFI
         let sectionIndex = null;
+        let progressPercentage = 0;
+
         if (cfi && book && book.spine) {
           try {
             console.log("[READING_MODE] Parsing CFI:", cfi);
@@ -3454,6 +3948,154 @@ function EpubReader() {
               }
             }
 
+            // Try to extract progress information from the CFI
+            // Format: epubcfi(/6/22!/4[8IL20-...]/6/1:0)
+            // We want to extract a percentage based on the position within the section
+            try {
+              // First, try to use the rendition to get the current page and total pages
+              if (rendition && rendition.location) {
+                const locationData = rendition.location;
+                if (locationData.start && locationData.start.percentage) {
+                  // If we have a direct percentage, use it
+                  progressPercentage = Math.round(
+                    locationData.start.percentage * 100
+                  );
+                  console.log(
+                    "[READING_MODE] Extracted progress percentage from location:",
+                    progressPercentage
+                  );
+                } else if (
+                  locationData.start &&
+                  locationData.start.displayed &&
+                  locationData.total &&
+                  locationData.total.displayed
+                ) {
+                  // Calculate percentage from current page / total pages
+                  const currentPage = locationData.start.displayed.page;
+                  const totalPages = locationData.total.displayed.pages;
+                  if (currentPage && totalPages) {
+                    progressPercentage = Math.round(
+                      (currentPage / totalPages) * 100
+                    );
+                    console.log(
+                      "[READING_MODE] Calculated progress from pages:",
+                      progressPercentage,
+                      `(${currentPage}/${totalPages})`
+                    );
+                  }
+                }
+              }
+
+              // If we couldn't get progress from location, try to extract from CFI
+              if (progressPercentage === 0 && cfi) {
+                // Try multiple approaches to extract position information from the CFI
+
+                // Approach 1: Try to extract character offset from standard CFI format
+                const posMatch = cfi.match(
+                  /\/(\d+)(?:\[\w+\])?(?:\/\d+)*:(\d+)/
+                );
+                if (posMatch && posMatch[2]) {
+                  // The second capture group is the character offset
+                  // We'll use it as a rough approximation of progress
+                  const charOffset = parseInt(posMatch[2], 10);
+                  // Assume a typical section has around 5000 characters
+                  const estimatedSectionLength = 5000;
+                  progressPercentage = Math.min(
+                    100,
+                    Math.round((charOffset / estimatedSectionLength) * 100)
+                  );
+                  console.log(
+                    "[READING_MODE] Estimated progress from CFI character offset:",
+                    progressPercentage
+                  );
+                }
+
+                // Approach 2: Try to get percentage directly from the rendition
+                if (progressPercentage === 0 && rendition) {
+                  try {
+                    // Get the current percentage directly from the rendition
+                    const currentPercentageFromRendition =
+                      rendition.location &&
+                      rendition.location.start &&
+                      rendition.location.start.percentage;
+
+                    if (currentPercentageFromRendition) {
+                      progressPercentage = Math.round(
+                        currentPercentageFromRendition * 100
+                      );
+                      console.log(
+                        "[READING_MODE] Got percentage directly from rendition:",
+                        progressPercentage
+                      );
+                    }
+                  } catch (renditionError) {
+                    console.error(
+                      "[READING_MODE] Error getting percentage from rendition:",
+                      renditionError
+                    );
+                  }
+                }
+
+                // Approach 3: Try to extract from rendition's current page information
+                if (
+                  progressPercentage === 0 &&
+                  rendition &&
+                  rendition.currentLocation
+                ) {
+                  try {
+                    const currentLoc = rendition.currentLocation();
+                    if (
+                      currentLoc &&
+                      currentLoc.start &&
+                      currentLoc.start.displayed
+                    ) {
+                      const currentPage = currentLoc.start.displayed.page;
+                      const totalPages = currentLoc.start.displayed.total;
+                      if (currentPage && totalPages) {
+                        progressPercentage = Math.round(
+                          (currentPage / totalPages) * 100
+                        );
+                        console.log(
+                          "[READING_MODE] Calculated progress from current location pages:",
+                          progressPercentage,
+                          `(${currentPage}/${totalPages})`
+                        );
+                      }
+                    }
+                  } catch (locError) {
+                    console.error(
+                      "[READING_MODE] Error getting current location:",
+                      locError
+                    );
+                  }
+                }
+
+                // Approach 4: Use the current percentage from state if available
+                if (progressPercentage === 0 && currentPercentage > 0) {
+                  progressPercentage = currentPercentage;
+                  console.log(
+                    "[READING_MODE] Using current percentage from state:",
+                    progressPercentage
+                  );
+                }
+
+                // Approach 5: If all else fails, use a default percentage based on section index
+                if (progressPercentage === 0 && sectionIndex !== null) {
+                  // Estimate progress as halfway through the current section
+                  progressPercentage = 50;
+                  console.log(
+                    "[READING_MODE] Using default mid-section percentage:",
+                    progressPercentage
+                  );
+                }
+              }
+            } catch (progressError) {
+              console.error(
+                "[READING_MODE] Error extracting progress information:",
+                progressError
+              );
+            }
+
             // Fallback: try to use the book's spine API directly
             if (
               sectionIndex === null ||
@@ -3497,24 +4139,56 @@ function EpubReader() {
         }
 
         // Format the progress data properly for the scroll manager
+        // Use the extracted section index and percentage if available
+        const sectionIndexToUse =
+          currentSectionIndex !== null ? currentSectionIndex : sectionIndex;
+        const progressPercentageToUse =
+          currentProgressPercentage !== null
+            ? currentProgressPercentage
+            : progressPercentage;
+
         let formattedProgress = {
           location: currentLocation,
-          percentage: currentPercentage / 100, // Convert percentage to decimal
+          percentage:
+            (progressPercentageToUse > 0
+              ? progressPercentageToUse
+              : currentPercentage) / 100, // Convert percentage to decimal
           chapter: currentChapter,
           scrollPosition:
             window.pageYOffset || document.documentElement.scrollTop,
           cfi: cfi,
         };
 
-        // If we found a section index, add it to the progress data
-        if (sectionIndex !== null) {
-          formattedProgress.sectionIndex = sectionIndex;
+        // If we have a section index, add it to the progress data
+        if (sectionIndexToUse !== null) {
+          formattedProgress.sectionIndex = sectionIndexToUse;
+          console.log(
+            "[READING_MODE] Added section index to progress data:",
+            sectionIndexToUse
+          );
+
+          // Create a custom CFI with the progress percentage
+          // This will be in the format that the scroll manager expects
+          if (progressPercentageToUse > 0) {
+            formattedProgress.customCfi = `/6/${
+              (sectionIndexToUse + 1) * 2
+            }[id${sectionIndexToUse}]!/${progressPercentageToUse}`;
+            console.log(
+              "[READING_MODE] Created custom CFI with progress:",
+              formattedProgress.customCfi
+            );
+          }
         }
 
         console.log(
           "[READING_MODE] Formatted progress for scroll manager:",
           formattedProgress
         );
+
+        // If we created a custom CFI, use it as the main CFI
+        if (formattedProgress.customCfi) {
+          formattedProgress.cfi = formattedProgress.customCfi;
+        }
 
         // Update the saved progress data so the scroll manager can use it
         setSavedProgressData(formattedProgress);
@@ -3527,14 +4201,117 @@ function EpubReader() {
 
       // Reset flags after a delay to allow the scroll manager to initialize and restore progress
       setTimeout(async () => {
+        // First apply font settings to the scroll manager
+        if (scrollApplyFontSettings) {
+          console.log(
+            "[READING_MODE] Applying font settings to scroll manager before restoring position:",
+            {
+              fontSize,
+              fontFamily,
+            }
+          );
+          scrollApplyFontSettings(fontSize, fontFamily);
+
+          // Apply theme if needed
+          if (scrollApplyTheme) {
+            console.log(
+              "[READING_MODE] Applying theme to scroll manager:",
+              isDarkTheme
+            );
+            scrollApplyTheme(isDarkTheme);
+          }
+
+          // Wait for font settings to be applied
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          console.log("[READING_MODE] Font settings applied to scroll manager");
+        }
+
         // Try to restore progress if we have a current location and the scroll manager is ready
         if (restoreProgress) {
           console.log(
             "[READING_MODE] Attempting to restore progress in scroll manager"
           );
           try {
-            // The restoreProgress function will use the savedProgress that was set earlier
-            await restoreProgress();
+            // Make sure we have the most accurate progress information
+            // If we have a custom CFI, make sure it's being used
+            if (savedProgressData && savedProgressData.customCfi) {
+              console.log(
+                "[READING_MODE] Using custom CFI for restoration:",
+                savedProgressData.customCfi
+              );
+              // Make sure the custom CFI is used as the main CFI
+              const updatedProgress = {
+                ...savedProgressData,
+                cfi: savedProgressData.customCfi,
+              };
+              setSavedProgressData(updatedProgress);
+              if (setSavedProgress) {
+                setSavedProgress(updatedProgress);
+              }
+            }
+            // If we don't have a custom CFI but have section index and percentage, create one
+            else if (
+              savedProgressData &&
+              savedProgressData.sectionIndex !== undefined &&
+              savedProgressData.percentage !== undefined
+            ) {
+              const sectionIndex = savedProgressData.sectionIndex;
+              const percentage = Math.round(savedProgressData.percentage * 100);
+
+              // Create a custom CFI with the percentage
+              const customCfi = `/6/${
+                (sectionIndex + 1) * 2
+              }[id${sectionIndex}]!/${percentage}`;
+
+              console.log(
+                "[READING_MODE] Created custom CFI from section index and percentage:",
+                customCfi
+              );
+
+              // Update the saved progress with the custom CFI
+              const updatedProgress = {
+                ...savedProgressData,
+                cfi: customCfi,
+                customCfi: customCfi,
+              };
+              setSavedProgressData(updatedProgress);
+              if (setSavedProgress) {
+                setSavedProgress(updatedProgress);
+              }
+            }
+
+            // If we have a section index, directly navigate to that section first
+            if (
+              savedProgressData &&
+              savedProgressData.sectionIndex !== undefined &&
+              navigateToSection
+            ) {
+              console.log(
+                "[READING_MODE] Directly navigating to section index:",
+                savedProgressData.sectionIndex
+              );
+
+              try {
+                // First navigate to the section
+                await navigateToSection(savedProgressData.sectionIndex);
+
+                // Wait a bit for the section to load
+                await new Promise((resolve) => setTimeout(resolve, 300));
+
+                // Then restore the progress within that section
+                await restoreProgress();
+              } catch (navError) {
+                console.error(
+                  "[READING_MODE] Error navigating to section:",
+                  navError
+                );
+                // Fallback to regular restore
+                await restoreProgress();
+              }
+            } else {
+              // Now restore the progress using the standard method
+              await restoreProgress();
+            }
 
             // After restoring progress, update the current percentage to match
             if (scrollReadingProgress !== undefined) {

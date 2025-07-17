@@ -1,1373 +1,618 @@
-/**
- * Custom Paginated Manager for EPUB Reader
- *
- * This provides a custom paginated reading experience that's consistent with
- * the CustomScrollManager, allowing for smooth switching between reading modes.
- * Unlike epub.js's built-in pagination, this manager provides better control
- * over layout, theming, and position tracking.
- */
+"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
+/**
+ * CustomPaginatedManager - Fixed implementation for proper EPUB pagination
+ * This implementation creates a true book-like experience with:
+ * - Exactly 2 columns per page on desktop
+ * - Single column on mobile
+ * - Proper page breaks and navigation
+ * - Accurate page counting
+ */
 class CustomPaginatedManager {
-  constructor(book, rendition, options = {}) {
+  constructor(book, options = {}) {
     this.book = book;
-    this.rendition = rendition; // Keep for compatibility but won't use for rendering
     this.container = null;
+    this.viewerRef = options.viewerRef;
+
+    // Pagination settings
+    this.pageWidth = options.pageWidth || 1080;
+    this.pageHeight = options.pageHeight || 815;
+    this.columnGap = options.columnGap || 40;
+    this.padding = 40;
+    this.isMobile = window.innerWidth <= 768;
+
+    // Calculate column dimensions
+    const availableWidth = this.pageWidth - this.padding;
+    const availableHeight = this.pageHeight - this.padding;
+
+    if (this.isMobile) {
+      this.columnsPerPage = 1;
+      this.columnWidth = availableWidth;
+    } else {
+      this.columnsPerPage = 2;
+      this.columnWidth = Math.floor((availableWidth - this.columnGap) / 2);
+    }
+
+    this.pageContentHeight = availableHeight;
+
+    // Font settings
+    this.fontSize = 1.0;
+    this.fontFamily = "Lora, Georgia, serif";
+    this.isDarkTheme = false;
+
+    // State
     this.sections = [];
     this.currentSectionIndex = 0;
     this.currentPageIndex = 0;
-    this.isLoading = false;
-    this.loadedSections = new Map(); // Cache for loaded sections
-
-    // User preferences
-    this.userFontSize = 1; // em units
-    this.userFontFamily = "Lora, Georgia, serif";
-    this.isDarkTheme = false;
+    this.totalPages = 0;
+    this.isInitialized = false;
 
     // Progress restoration
-    this.savedProgress = null;
+    this.savedProgress = options.savedProgress || null;
 
-    // Configuration
-    this.options = {
-      preloadCount: 1, // Number of sections to preload ahead/behind
-      columnGap: 40, // Gap between columns in pixels
-      pageWidth: 600, // Target page width in pixels
-      pageHeight: 800, // Target page height in pixels
-      ...options,
-    };
+    // Callbacks
+    this.onLocationChange = null;
+    this.onProgressChange = null;
 
-    // Pagination state
-    this.pages = []; // Array of page objects with section and content info
-    this.currentPageGlobal = 0; // Global page index across all sections
-    this.totalPages = 0;
-
-    // Event handlers
-    this.onResize = this.onResize.bind(this);
-    this.onKeyDown = this.onKeyDown.bind(this);
+    // Bind methods
+    this.next = this.next.bind(this);
+    this.prev = this.prev.bind(this);
+    this.goToPage = this.goToPage.bind(this);
+    this.applyTheme = this.applyTheme.bind(this);
+    this.applyFontSettings = this.applyFontSettings.bind(this);
   }
 
   async init() {
     try {
+      console.log("[CustomPaginatedManager] Starting initialization...");
+
       // Wait for book to be ready
-      if (this.book && this.book.ready) {
-        await this.book.ready;
+      await this.book.ready;
+
+      // Set up container
+      this.setupContainer();
+
+      // Load all sections and calculate pagination
+      await this.loadAllSections();
+
+      // Calculate total pages
+      this.calculateTotalPages();
+
+      // Restore progress or go to first page
+      if (this.savedProgress) {
+        await this.restoreProgress();
       } else {
-        console.warn("[CustomPaginatedManager] Book not ready, waiting...");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        if (!this.book || !this.book.spine) {
-          throw new Error("Book not properly loaded");
-        }
+        this.goToPage(1);
       }
-
-      // Get all sections from spine
-      console.log(
-        `[CustomPaginatedManager] Book spine has ${this.book.spine.spineItems.length} items`
-      );
-      this.book.spine.spineItems.forEach((item, index) => {
-        console.log(
-          `[CustomPaginatedManager] Section ${index}: ${item.href} (id: ${item.id}, linear: ${item.linear})`
-        );
-      });
-
-      this.sections = this.book.spine.spineItems.map((item, index) => ({
-        index,
-        href: item.href,
-        id: item.id,
-        item,
-        element: null,
-        pages: [], // Pages within this section
-        loaded: false,
-        content: null,
-      }));
-
-      console.log(
-        "[CustomPaginatedManager] Initialized with",
-        this.sections.length,
-        "sections"
-      );
-
-      // Set up container and wait for it to be ready
-      await this.setupContainer();
-
-      // Load initial sections and create pages
-      await this.loadInitialSections();
 
       // Set up event listeners
       this.setupEventListeners();
 
-      // Trigger initial location update
-      setTimeout(() => {
-        if (this.onSectionChangeCallback) {
-          const location = this.getCurrentLocation();
-          if (location) {
-            console.log(
-              "[CustomPaginatedManager] Initial location update:",
-              location
-            );
-            this.onSectionChangeCallback(location);
-          }
-        }
-      }, 500);
+      this.isInitialized = true;
+      console.log(
+        `[CustomPaginatedManager] Initialization complete. Total pages: ${this.totalPages}`
+      );
+
+      return true;
     } catch (error) {
       console.error("[CustomPaginatedManager] Initialization failed:", error);
-      throw error;
+      return false;
     }
   }
 
   setupContainer() {
-    return new Promise((resolve, reject) => {
-      let retries = 0;
-      const maxRetries = 5;
+    if (!this.viewerRef?.current) {
+      throw new Error("Viewer container not found");
+    }
 
-      const findContainer = () => {
-        const refContainer =
-          this.options.viewerRef && this.options.viewerRef.current;
-        const idContainer = document.getElementById("viewer");
+    this.container = this.viewerRef.current;
+    this.container.innerHTML = "";
+
+    // Set up container styles
+    this.container.style.cssText = `
+      width: ${this.pageWidth}px;
+      height: ${this.pageHeight}px;
+      overflow: hidden;
+      position: relative;
+      margin: 0 auto;
+      background: ${this.isDarkTheme ? "#000" : "#fff"};
+      color: ${this.isDarkTheme ? "#fff" : "#000"};
+      padding: ${this.padding / 2}px;
+      box-sizing: border-box;
+    `;
+
+    console.log("[CustomPaginatedManager] Container setup complete");
+  }
+
+  async loadAllSections() {
+    console.log("[CustomPaginatedManager] Loading all sections...");
+
+    this.sections = [];
+
+    for (let i = 0; i < this.book.spine.spineItems.length; i++) {
+      const spineItem = this.book.spine.spineItems[i];
+
+      try {
+        console.log(
+          `[CustomPaginatedManager] Loading section ${i}: ${spineItem.href}`
+        );
+
+        // Load section content
+        await spineItem.load(this.book.load.bind(this.book));
+
+        if (!spineItem.document || !spineItem.document.body) {
+          console.warn(`[CustomPaginatedManager] Section ${i} has no content`);
+          this.sections.push({
+            index: i,
+            href: spineItem.href,
+            content: null,
+            pages: [],
+            loaded: true,
+          });
+          continue;
+        }
+
+        // Process and paginate section
+        const processedContent = this.processSection(spineItem);
+        const pages = await this.paginateSection(processedContent, i);
+
+        this.sections.push({
+          index: i,
+          href: spineItem.href,
+          content: processedContent,
+          pages: pages,
+          loaded: true,
+        });
 
         console.log(
-          `[CustomPaginatedManager] Looking for container - ref: ${!!refContainer}, id: ${!!idContainer}`
+          `[CustomPaginatedManager] Section ${i} loaded with ${pages.length} pages`
         );
-
-        this.container = refContainer || idContainer;
-        if (!this.container && retries < maxRetries) {
-          retries++;
-          console.log(
-            `[CustomPaginatedManager] Viewer container not found, retry ${retries}/${maxRetries}`
-          );
-          setTimeout(findContainer, 50);
-          return;
-        }
-
-        if (!this.container) {
-          console.warn(
-            "[CustomPaginatedManager] Viewer container not found, creating fallback"
-          );
-          this.container = document.createElement("div");
-          this.container.id = "viewer-fallback";
-          this.container.style.cssText = `
-             position: fixed;
-             top: 0;
-             left: 0;
-             width: 100%;
-             height: 100vh;
-             z-index: 1000;
-             background: white;
-           `;
-          document.body.appendChild(this.container);
-        }
-
-        console.log("[CustomPaginatedManager] Found viewer container");
-
-        // Clear existing content
-        this.container.innerHTML = "";
-
-        // Set up container styles for pagination
-        const backgroundColor = this.isDarkTheme ? "#1a1a1a" : "#ffffff";
-        this.container.style.cssText = `
-           width: 100vw !important;
-           max-width: 100vw !important;
-           height: 100vh !important;
-           overflow: hidden !important;
-           position: relative !important;
-           background: ${backgroundColor};
-           margin: 0 !important;
-           padding: 0 !important;
-         `;
-
-        // Prevent body scrolling in paginated mode
-        document.body.style.overflow = "hidden";
-
-        // Create page container
-        this.pageContainer = document.createElement("div");
-        this.pageContainer.className = "paginated-container";
-        this.pageContainer.style.cssText = `
-           width: 100%;
-           height: 100%;
-           position: relative;
-           display: flex;
-           align-items: center;
-           justify-content: center;
-           overflow: hidden;
-         `;
-        this.container.appendChild(this.pageContainer);
-
-        // Create page content area
-        this.pageContent = document.createElement("div");
-        this.pageContent.className = "page-content";
-        this.updatePageContentStyles();
-        this.pageContainer.appendChild(this.pageContent);
-
-        console.log("[CustomPaginatedManager] Container setup complete");
-        resolve();
-      };
-
-      findContainer();
-    });
-  }
-
-  updatePageContentStyles() {
-    if (!this.pageContent) return;
-
-    const isMobile = window.innerWidth <= 768;
-    const backgroundColor = this.isDarkTheme ? "#1a1a1a" : "#ffffff";
-    const textColor = this.isDarkTheme ? "#e0e0e0" : "#333333";
-
-    // Calculate responsive dimensions
-    const containerWidth = window.innerWidth;
-    const containerHeight = window.innerHeight;
-
-    let pageWidth, pageHeight, padding;
-
-    if (isMobile) {
-      // Mobile: use most of the screen
-      pageWidth = containerWidth - 40;
-      pageHeight = containerHeight - 120; // Leave space for navigation
-      padding = "20px";
-    } else {
-      // Desktop: use most of the available screen space for better reading
-      pageWidth = Math.min(containerWidth - 100, 1200); // Leave some margin, max 1200px
-      pageHeight = containerHeight - 100; // Leave space for navigation
-      padding = "40px 60px";
-    }
-
-    this.pageContent.style.cssText = `
-       width: ${pageWidth}px;
-       height: ${pageHeight}px;
-       background: ${backgroundColor};
-       color: ${textColor};
-       padding: ${padding};
-       box-sizing: border-box;
-       overflow: hidden;
-       position: relative;
-       box-shadow: ${
-         this.isDarkTheme
-           ? "0 4px 20px rgba(0,0,0,0.5)"
-           : "0 4px 20px rgba(0,0,0,0.1)"
-       };
-       border-radius: 8px;
-       font-family: ${this.userFontFamily};
-       font-size: ${this.userFontSize}em;
-       line-height: 1.6;
-       column-fill: auto;
-       column-gap: ${this.options.columnGap}px;
-     `;
-
-    // Store dimensions for pagination calculations
-    this.pageWidth = pageWidth - (isMobile ? 40 : 120); // Account for padding
-    this.pageHeight = pageHeight - (isMobile ? 40 : 80);
-
-    // Force layout recalculation to ensure proper rendering
-    if (this.pageContent) {
-      this.pageContent.offsetHeight; // Force reflow
-    }
-  }
-
-  setupEventListeners() {
-    window.addEventListener("resize", this.onResize);
-    window.addEventListener("keydown", this.onKeyDown);
-  }
-
-  onResize() {
-    console.log("[CustomPaginatedManager] Window resized, updating layout");
-    this.updatePageContentStyles();
-    // Re-paginate current section
-    if (this.sections[this.currentSectionIndex]?.loaded) {
-      this.paginateSection(this.currentSectionIndex);
-      this.displayCurrentPage();
-    }
-  }
-
-  onKeyDown(event) {
-    // Handle keyboard navigation
-    switch (event.key) {
-      case "ArrowLeft":
-        event.preventDefault();
-        this.prevPage();
-        break;
-      case "ArrowRight":
-        event.preventDefault();
-        this.nextPage();
-        break;
-      case "Home":
-        event.preventDefault();
-        this.goToPage(0);
-        break;
-      case "End":
-        event.preventDefault();
-        this.goToPage(this.totalPages - 1);
-        break;
-    }
-  }
-
-  async loadInitialSections() {
-    if (this.sections.length === 0) return;
-
-    // Determine starting section based on saved progress
-    let startSectionIndex = 0;
-    let startPageIndex = 0;
-
-    if (this.savedProgress) {
-      console.log(
-        "[CustomPaginatedManager] Checking saved progress:",
-        this.savedProgress
-      );
-
-      // Try to extract section index from saved progress
-      if (this.savedProgress.sectionIndex !== undefined) {
-        startSectionIndex = this.savedProgress.sectionIndex;
-      } else if (this.savedProgress.cfi) {
-        // Extract from CFI
-        const match = this.savedProgress.cfi.match(
-          /\/6\/(\d+)(?:\[[^\]]*\])?!/
-        );
-        if (match) {
-          const spinePos = parseInt(match[1], 10);
-          startSectionIndex = Math.floor((spinePos - 2) / 2);
-          startSectionIndex = Math.max(
-            0,
-            Math.min(startSectionIndex, this.sections.length - 1)
-          );
-        }
-      }
-
-      // Try to extract page index from percentage
-      if (this.savedProgress.percentage !== undefined) {
-        // We'll calculate the exact page after loading the section
-        startPageIndex = 0; // Will be updated after pagination
-      }
-    }
-
-    console.log(
-      `[CustomPaginatedManager] Loading initial section ${startSectionIndex}`
-    );
-
-    // Load the starting section
-    await this.loadSection(startSectionIndex);
-    this.currentSectionIndex = startSectionIndex;
-
-    // Paginate the section
-    await this.paginateSection(startSectionIndex);
-
-    // TEMPORARY: Force start from page 0 to test content visibility
-    startPageIndex = 0;
-
-    // If we have saved progress with percentage, calculate the correct page
-    // if (this.savedProgress?.percentage !== undefined) {
-    //   const section = this.sections[startSectionIndex];
-    //   if (section.pages.length > 0) {
-    //     startPageIndex = Math.floor(
-    //       (this.savedProgress.percentage / 100) * section.pages.length
-    //     );
-    //     startPageIndex = Math.max(0, Math.min(startPageIndex, section.pages.length - 1));
-    //   }
-    // }
-
-    this.currentPageIndex = startPageIndex;
-    this.updateGlobalPageIndex();
-
-    // Display the current page
-    this.displayCurrentPage();
-
-    // Preload adjacent sections
-    const preloadPromises = [];
-    for (let i = 1; i <= this.options.preloadCount; i++) {
-      if (startSectionIndex - i >= 0) {
-        preloadPromises.push(this.loadSection(startSectionIndex - i));
-      }
-      if (startSectionIndex + i < this.sections.length) {
-        preloadPromises.push(this.loadSection(startSectionIndex + i));
-      }
-    }
-
-    // Load preload sections in background
-    Promise.all(preloadPromises)
-      .then(() => {
-        console.log("[CustomPaginatedManager] Preload sections loaded");
-
-        // Paginate all sections in background to get correct total pages
-        this.paginateAllSections();
-      })
-      .catch((error) => {
-        console.warn(
-          "[CustomPaginatedManager] Some preload sections failed:",
+      } catch (error) {
+        console.error(
+          `[CustomPaginatedManager] Failed to load section ${i}:`,
           error
         );
-      });
-  }
-
-  async loadSection(index) {
-    if (index < 0 || index >= this.sections.length) return;
-
-    const section = this.sections[index];
-    if (section.loaded || section.loading) return;
-
-    section.loading = true;
-
-    try {
-      console.log(
-        "[CustomPaginatedManager] Loading section",
-        index,
-        section.href
-      );
-
-      // Ensure the section has access to the book object
-      if (section.item && !section.item.book) {
-        section.item.book = this.book;
+        this.sections.push({
+          index: i,
+          href: spineItem.href,
+          content: null,
+          pages: [],
+          loaded: false,
+        });
       }
-
-      await section.item.load(this.book.load.bind(this.book));
-
-      if (!section.item.document || !section.item.document.body) {
-        console.warn("[CustomPaginatedManager] Section has no content:", index);
-        return;
-      }
-
-      // Clone the section content
-      const content = section.item.document.body.cloneNode(true);
-
-      // Process the content (handle images, links, etc.)
-      this.processContent(content, section);
-
-      // Update section data
-      section.content = content;
-      section.loaded = true;
-      section.loading = false;
-
-      // Cache the loaded section
-      this.loadedSections.set(index, section);
-
-      console.log(
-        `[CustomPaginatedManager] Section ${index} loaded successfully`
-      );
-    } catch (error) {
-      console.error(
-        `[CustomPaginatedManager] Failed to load section ${index}:`,
-        error
-      );
-      section.loading = false;
     }
+
+    console.log(
+      `[CustomPaginatedManager] All sections loaded. Total sections: ${this.sections.length}`
+    );
   }
 
-  processContent(content, section) {
-    // Process images with advanced EPUB image handling
+  processSection(spineItem) {
+    const content = spineItem.document.body.cloneNode(true);
+
+    // Process images
     const images = content.querySelectorAll("img, image");
-    console.log(
-      `[CustomPaginatedManager] Found ${images.length} images in section ${section.index}`
-    );
-    images.forEach((img) => {
-      // Make images responsive
-      img.style.maxWidth = "100%";
-      img.style.height = "auto";
-      img.style.display = "block";
-      img.style.margin = "10px auto";
+    images.forEach((img) => this.processImage(img, spineItem));
 
-      // Process the image using enhanced image handler
-      this.processImage(img, section);
-    });
+    // Apply base styles
+    this.applyContentStyles(content);
 
-    // Process links
-    const links = content.querySelectorAll("a");
-    links.forEach((link) => {
-      // Handle internal links
-      if (link.href && link.href.includes("#")) {
-        link.addEventListener("click", (e) => {
-          e.preventDefault();
-          // Handle internal navigation
-          this.handleInternalLink(link.href);
-        });
-      }
-    });
-
-    // Apply theme styles
-    this.applyContentTheme(content);
+    return content;
   }
 
-  applyContentTheme(content) {
-    const textColor = this.isDarkTheme ? "#e0e0e0" : "#333333";
-    const linkColor = this.isDarkTheme ? "#66b3ff" : "#0066cc";
-
-    // Apply text color to all text elements
-    const textElements = content.querySelectorAll(
-      "p, h1, h2, h3, h4, h5, h6, span, div, li"
-    );
-    textElements.forEach((el) => {
-      el.style.color = textColor;
-    });
-
-    // Apply link colors
-    const links = content.querySelectorAll("a");
-    links.forEach((link) => {
-      link.style.color = linkColor;
-    });
-  }
-
-  async paginateSection(sectionIndex) {
-    const section = this.sections[sectionIndex];
-    if (!section) {
-      console.log(
-        `[CustomPaginatedManager] paginateSection: No section at index ${sectionIndex}`
-      );
-      return;
-    }
-    if (!section.loaded) {
-      console.log(
-        `[CustomPaginatedManager] paginateSection: Section ${sectionIndex} not loaded`
-      );
-      return;
-    }
-    if (!section.content) {
-      console.log(
-        `[CustomPaginatedManager] paginateSection: Section ${sectionIndex} has no content`
-      );
-      return;
-    }
-
-    console.log(`[CustomPaginatedManager] Paginating section ${sectionIndex}`);
-
-    // Create a temporary container to measure content
-    const tempContainer = document.createElement("div");
-    tempContainer.style.cssText = `
-       position: absolute;
-       top: -9999px;
-       left: -9999px;
-       width: ${this.pageWidth}px;
-       height: ${this.pageHeight}px;
-       overflow: hidden;
-       font-family: ${this.userFontFamily};
-       font-size: ${this.userFontSize}em;
-       line-height: 1.6;
-       column-fill: auto;
-       column-gap: ${this.options.columnGap}px;
-     `;
-
-    // Clone content for measurement
-    const contentClone = section.content.cloneNode(true);
-    tempContainer.appendChild(contentClone);
-    document.body.appendChild(tempContainer);
-
-    // For mobile, use single column; for desktop, use two columns
-    const isMobile = window.innerWidth <= 768;
-    const columnsPerPage = isMobile ? 1 : 2;
-    const availableWidth = this.pageWidth;
-    const columnWidth = isMobile
-      ? availableWidth
-      : Math.floor((availableWidth - this.options.columnGap) / columnsPerPage);
-
-    console.log(
-      `[CustomPaginatedManager] Page dimensions: ${this.pageWidth}x${this.pageHeight}`
-    );
-    console.log(`[CustomPaginatedManager] Columns per page: ${columnsPerPage}`);
-
-    // Set column styles
-    if (!isMobile) {
-      tempContainer.style.columnWidth = `${columnWidth}px`;
-      tempContainer.style.columnCount = columnsPerPage;
-    } else {
-      tempContainer.style.columnCount = 1;
-    }
-
-    // Force layout calculation
-    tempContainer.offsetHeight;
-
-    // For column-based layout, we need to calculate pages differently
-    let pagesNeeded;
-
-    if (isMobile) {
-      // Mobile: single column, use vertical pagination
-      const contentHeight = tempContainer.scrollHeight;
-      pagesNeeded = Math.max(1, Math.ceil(contentHeight / this.pageHeight));
-
-      console.log(
-        `[CustomPaginatedManager] Mobile - Content height: ${contentHeight}px, pages needed: ${pagesNeeded}`
-      );
-
-      // Create page objects for mobile (vertical pagination)
-      section.pages = [];
-      for (let i = 0; i < pagesNeeded; i++) {
-        section.pages.push({
-          sectionIndex,
-          pageIndex: i,
-          startOffset: i * this.pageHeight,
-          endOffset: Math.min((i + 1) * this.pageHeight, contentHeight),
-        });
-      }
-    } else {
-      // Desktop: For column-based layout, we need to calculate based on content height
-      // and how it flows into columns, then determine horizontal pages
-      const contentHeight = tempContainer.scrollHeight;
-      const availableHeight = this.pageHeight;
-
-      // Calculate how many "column sets" (pages) we need
-      // Each page can hold pageHeight worth of content across 2 columns
-      const contentPerPage = availableHeight * columnsPerPage;
-      pagesNeeded = Math.max(1, Math.ceil(contentHeight / contentPerPage));
-
-      console.log(
-        `[CustomPaginatedManager] Desktop - Content height: ${contentHeight}px, content per page: ${contentPerPage}px, pages needed: ${pagesNeeded}`
-      );
-
-      // Create page objects for desktop (column-based pagination)
-      section.pages = [];
-      for (let i = 0; i < pagesNeeded; i++) {
-        section.pages.push({
-          sectionIndex,
-          pageIndex: i,
-          startOffset: i * contentPerPage, // Vertical offset for column content
-          endOffset: Math.min((i + 1) * contentPerPage, contentHeight),
-        });
-      }
-    }
-
-    // Clean up temporary container
-    document.body.removeChild(tempContainer);
-
-    console.log(
-      `[CustomPaginatedManager] Section ${sectionIndex} paginated into ${section.pages.length} pages`
-    );
-
-    // Update total pages count
-    this.updateTotalPages();
-  }
-
-  async paginateAllSections() {
-    console.log(
-      "[CustomPaginatedManager] Starting background pagination of all sections"
-    );
-
-    for (let i = 0; i < this.sections.length; i++) {
-      if (!this.sections[i].pages) {
-        try {
-          await this.loadSection(i);
-          await this.paginateSection(i);
-
-          // Update total pages after each section is paginated
-          this.updateTotalPages();
-          this.updateCurrentLocation(); // Update location with new total
-        } catch (error) {
-          console.warn(
-            `[CustomPaginatedManager] Failed to paginate section ${i}:`,
-            error
-          );
-        }
-      }
-    }
-
-    console.log("[CustomPaginatedManager] Background pagination complete");
-    this.updateTotalPages(); // Final update
-    this.updateCurrentLocation(); // Final location update
-  }
-
-  updateTotalPages() {
-    let paginatedSections = 0;
-    this.totalPages = this.sections.reduce((total, section, index) => {
-      const sectionPages = section.pages ? section.pages.length : 0;
-      if (section.pages) paginatedSections++;
-      console.log(
-        `[CustomPaginatedManager] Section ${index}: ${sectionPages} pages (loaded: ${
-          section.loaded
-        }, paginated: ${!!section.pages})`
-      );
-      return total + sectionPages;
-    }, 0);
-
-    console.log(
-      `[CustomPaginatedManager] Total pages: ${this.totalPages} (from ${paginatedSections}/${this.sections.length} paginated sections)`
-    );
-  }
-
-  // Process an image element with EPUB archive support
-  processImage(img, section) {
-    // Get the source URL - handle both img src and SVG image xlink:href
-    const originalSrc =
+  processImage(img, spineItem) {
+    const src =
       img.getAttribute("src") ||
       img.getAttribute("xlink:href") ||
       img.getAttribute("href");
+    if (!src) return;
 
-    if (!originalSrc) return;
+    // Skip if already processed
+    if (src.startsWith("blob:") || src.startsWith("data:")) return;
 
-    // Skip if already a blob or data URL
-    if (originalSrc.startsWith("blob:") || originalSrc.startsWith("data:")) {
-      console.log(
-        "[CustomPaginatedManager] Image already has blob or data URL, skipping conversion"
-      );
-      return;
-    }
-
-    console.log("[CustomPaginatedManager] Processing image:", originalSrc);
-
-    // For HTTP URLs, fetch directly
-    if (originalSrc.startsWith("http")) {
-      console.log(
-        "[CustomPaginatedManager] Fetching external image:",
-        originalSrc
-      );
-      this.fetchImageAsBlob(img, originalSrc);
-      return;
-    }
-
-    // Try to find the image in the book's resources first
-    if (this.tryBookResource(img, originalSrc)) {
-      return;
-    }
-
-    // For relative URLs, try multiple approaches
     try {
-      // First try: Use epubjs archive methods
-      let blobPromise = null;
-
-      // Ensure the URL starts with a slash for epubjs archive
-      let archiveUrl = originalSrc;
-      if (!archiveUrl.startsWith("/")) {
-        archiveUrl = "/" + archiveUrl;
-      }
-
-      console.log(
-        "[CustomPaginatedManager] Trying to get blob for:",
-        archiveUrl
-      );
-
-      if (this.book && this.book.archive) {
-        if (typeof this.book.archive.getBlob === "function") {
-          blobPromise = this.book.archive.getBlob(archiveUrl);
-        } else if (typeof this.book.archive.request === "function") {
-          blobPromise = this.book.archive.request(archiveUrl, "blob");
-        }
-      }
-
-      if (blobPromise) {
-        blobPromise
-          .then((blob) => {
-            if (blob) {
-              const blobUrl = URL.createObjectURL(blob);
-              console.log(
-                "[CustomPaginatedManager] Created blob URL for image:",
-                blobUrl
-              );
-
-              // Set the appropriate attribute based on element type
-              if (img.tagName.toLowerCase() === "img") {
-                img.src = blobUrl;
-              } else {
-                // For SVG image elements
-                img.setAttribute("xlink:href", blobUrl);
-                img.setAttribute("href", blobUrl);
-              }
-
-              // Store the blob URL for cleanup later
-              img.dataset.blobUrl = blobUrl;
-            } else {
-              console.warn(
-                "[CustomPaginatedManager] getBlob returned null/undefined for:",
-                archiveUrl
-              );
-              this.fallbackImageResolution(img, originalSrc);
-            }
-          })
-          .catch((error) => {
-            console.error(
-              "[CustomPaginatedManager] Error creating blob URL for image:",
-              error
-            );
-            this.fallbackImageResolution(img, originalSrc);
-          });
-      } else {
-        console.warn(
-          "[CustomPaginatedManager] No suitable blob method found, using resolve fallback"
-        );
-        this.fallbackImageResolution(img, originalSrc);
-      }
+      // Get image from book archive
+      const imageUrl = this.book.archive.createUrl(src);
+      img.src = imageUrl;
     } catch (error) {
-      console.error("[CustomPaginatedManager] Error processing image:", error);
-      // Try our fallback method as a last resort
-      this.fallbackImageResolution(img, originalSrc);
-    }
-  }
-
-  // Try to find and use a resource from the book
-  tryBookResource(img, originalSrc) {
-    if (!this.book) {
-      return false;
-    }
-
-    // Extract filename for partial matching
-    const filename = originalSrc.split("/").pop();
-
-    // Try different variations of the path
-    const pathVariations = [
-      originalSrc,
-      originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc,
-      !originalSrc.startsWith("/") ? "/" + originalSrc : originalSrc,
-      "images/" +
-        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
-      "/images/" +
-        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
-      "Images/" +
-        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
-      "/Images/" +
-        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
-      filename,
-      "images/" + filename,
-      "/images/" + filename,
-      "Images/" + filename,
-      "/Images/" + filename,
-    ];
-
-    // First try: Direct access to the book's archive using the URL
-    if (this.book.archive && typeof this.book.archive.getBlob === "function") {
-      for (const path of pathVariations) {
-        try {
-          const archiveUrl = path.startsWith("/") ? path : "/" + path;
-          console.log(
-            "[CustomPaginatedManager] Directly trying archive for:",
-            archiveUrl
-          );
-
-          // Get the blob directly from the archive
-          const blobPromise = this.book.archive.getBlob(archiveUrl);
-          if (blobPromise) {
-            // Set a placeholder while loading
-            if (img.tagName.toLowerCase() === "img") {
-              img.src =
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f0f0f0'/%3E%3Ctext x='50' y='50' font-family='Arial' font-size='10' text-anchor='middle' fill='%23999'%3ELoading...%3C/text%3E%3C/svg%3E";
-            }
-
-            // Handle the promise
-            blobPromise
-              .then((blob) => {
-                if (blob) {
-                  const blobUrl = URL.createObjectURL(blob);
-                  console.log(
-                    "[CustomPaginatedManager] Created blob URL directly from archive:",
-                    blobUrl
-                  );
-
-                  if (img.tagName.toLowerCase() === "img") {
-                    img.src = blobUrl;
-                  } else {
-                    img.setAttribute("xlink:href", blobUrl);
-                    img.setAttribute("href", blobUrl);
-                  }
-
-                  // Store the blob URL for cleanup later
-                  img.dataset.blobUrl = blobUrl;
-                  return true;
-                }
-              })
-              .catch(() => {
-                // Silently fail and continue to next method
-              });
-
-            return true; // We found a potential match, even if async
-          }
-        } catch (error) {
-          // Continue to next path variation
-          continue;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  // Fallback image resolution
-  fallbackImageResolution(img, originalSrc) {
-    console.log(
-      "[CustomPaginatedManager] Using fallback image resolution for:",
-      originalSrc
-    );
-
-    // Set a placeholder image
-    if (img.tagName.toLowerCase() === "img") {
-      img.src =
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='%23f0f0f0' stroke='%23ddd'/%3E%3Ctext x='100' y='75' font-family='Arial' font-size='12' text-anchor='middle' fill='%23999'%3EImage not found%3C/text%3E%3C/svg%3E";
-    } else {
-      img.setAttribute(
-        "xlink:href",
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='%23f0f0f0' stroke='%23ddd'/%3E%3Ctext x='100' y='75' font-family='Arial' font-size='12' text-anchor='middle' fill='%23999'%3EImage not found%3C/text%3E%3C/svg%3E"
+      console.warn(
+        `[CustomPaginatedManager] Failed to process image: ${src}`,
+        error
       );
     }
   }
 
-  // Fetch external image as blob
-  fetchImageAsBlob(img, url) {
-    fetch(url)
-      .then((response) => response.blob())
-      .then((blob) => {
-        const blobUrl = URL.createObjectURL(blob);
-        if (img.tagName.toLowerCase() === "img") {
-          img.src = blobUrl;
-        } else {
-          img.setAttribute("xlink:href", blobUrl);
-          img.setAttribute("href", blobUrl);
-        }
-        img.dataset.blobUrl = blobUrl;
-      })
-      .catch((error) => {
-        console.error(
-          "[CustomPaginatedManager] Error fetching external image:",
-          error
+  applyContentStyles(content) {
+    // Apply font and theme styles
+    content.style.cssText = `
+      font-family: ${this.fontFamily};
+      font-size: ${this.fontSize}em;
+      line-height: 1.6;
+      color: ${this.isDarkTheme ? "#fff" : "#000"};
+      background: transparent;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    `;
+
+    // Style paragraphs and other elements
+    const paragraphs = content.querySelectorAll("p, div, span");
+    paragraphs.forEach((p) => {
+      p.style.marginBottom = "1em";
+      p.style.textAlign = "justify";
+    });
+
+    // Style headings
+    const headings = content.querySelectorAll("h1, h2, h3, h4, h5, h6");
+    headings.forEach((h) => {
+      h.style.marginTop = "1.5em";
+      h.style.marginBottom = "1em";
+      h.style.fontWeight = "bold";
+    });
+
+    // Style images
+    const images = content.querySelectorAll("img");
+    images.forEach((img) => {
+      img.style.maxWidth = "100%";
+      img.style.height = "auto";
+      img.style.display = "block";
+      img.style.margin = "1em auto";
+    });
+  }
+
+  async paginateSection(content, sectionIndex) {
+    if (!content) return [];
+
+    // Create temporary container for measurement
+    const tempContainer = document.createElement("div");
+    tempContainer.style.cssText = `
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      width: ${this.columnWidth}px;
+      height: ${this.pageContentHeight}px;
+      overflow: hidden;
+      visibility: hidden;
+      font-family: ${this.fontFamily};
+      font-size: ${this.fontSize}em;
+      line-height: 1.6;
+    `;
+
+    document.body.appendChild(tempContainer);
+
+    const pages = [];
+
+    try {
+      // Clone content for measurement
+      const contentClone = content.cloneNode(true);
+      tempContainer.appendChild(contentClone);
+
+      // Get all text nodes and elements
+      const elements = this.getAllContentElements(contentClone);
+
+      if (elements.length === 0) {
+        // Empty section
+        pages.push({
+          sectionIndex,
+          pageIndex: 0,
+          elements: [],
+          columns: this.isMobile ? 1 : 2,
+        });
+      } else {
+        // Split elements into pages
+        const paginatedElements = this.splitElementsIntoPages(
+          elements,
+          tempContainer
         );
-        this.fallbackImageResolution(img, url);
-      });
+
+        paginatedElements.forEach((pageElements, pageIndex) => {
+          pages.push({
+            sectionIndex,
+            pageIndex,
+            elements: pageElements,
+            columns: this.isMobile ? 1 : 2,
+          });
+        });
+      }
+    } finally {
+      // Clean up
+      document.body.removeChild(tempContainer);
+    }
+
+    console.log(
+      `[CustomPaginatedManager] Section ${sectionIndex} paginated into ${pages.length} pages`
+    );
+    return pages;
   }
 
-  updateGlobalPageIndex() {
-    let globalIndex = 0;
+  getAllContentElements(container) {
+    const elements = [];
+    const walker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          // Skip empty text nodes
+          if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      }
+    );
 
-    // Add pages from previous sections
-    for (let i = 0; i < this.currentSectionIndex; i++) {
-      if (this.sections[i].pages) {
-        globalIndex += this.sections[i].pages.length;
+    let node;
+    while ((node = walker.nextNode())) {
+      elements.push(node.cloneNode(true));
+    }
+
+    return elements;
+  }
+
+  splitElementsIntoPages(elements, measureContainer) {
+    const pages = [];
+    let currentPage = [];
+    let currentHeight = 0;
+    const maxHeight = this.pageContentHeight * (this.isMobile ? 1 : 2); // 2 columns worth of height
+
+    for (const element of elements) {
+      // Create a test container to measure this element
+      const testDiv = document.createElement("div");
+      testDiv.style.cssText = `
+        width: ${this.columnWidth}px;
+        font-family: ${this.fontFamily};
+        font-size: ${this.fontSize}em;
+        line-height: 1.6;
+      `;
+      testDiv.appendChild(element.cloneNode(true));
+      measureContainer.appendChild(testDiv);
+
+      const elementHeight = testDiv.offsetHeight;
+      measureContainer.removeChild(testDiv);
+
+      // Check if adding this element would exceed page height
+      if (currentHeight + elementHeight > maxHeight && currentPage.length > 0) {
+        // Start new page
+        pages.push([...currentPage]);
+        currentPage = [element];
+        currentHeight = elementHeight;
+      } else {
+        // Add to current page
+        currentPage.push(element);
+        currentHeight += elementHeight;
       }
     }
 
-    // Add current page index within current section
-    globalIndex += this.currentPageIndex;
+    // Add the last page if it has content
+    if (currentPage.length > 0) {
+      pages.push(currentPage);
+    }
 
-    this.currentPageGlobal = globalIndex;
+    return pages.length > 0 ? pages : [[]]; // Ensure at least one page
   }
 
-  displayCurrentPage() {
-    console.log(
-      `[CustomPaginatedManager] displayCurrentPage called - section: ${this.currentSectionIndex}, page: ${this.currentPageIndex}`
-    );
+  calculateTotalPages() {
+    this.totalPages = this.sections.reduce((total, section) => {
+      return total + (section.pages ? section.pages.length : 0);
+    }, 0);
 
-    const section = this.sections[this.currentSectionIndex];
-    if (!section) {
-      console.log(
-        `[CustomPaginatedManager] No section found at index ${this.currentSectionIndex}`
+    console.log(
+      `[CustomPaginatedManager] Total pages calculated: ${this.totalPages}`
+    );
+  }
+
+  displayPage(globalPageIndex) {
+    if (globalPageIndex < 0 || globalPageIndex >= this.totalPages) {
+      console.warn(
+        `[CustomPaginatedManager] Invalid page index: ${globalPageIndex}`
       );
       return;
     }
-
-    if (!section.loaded) {
-      console.log(
-        `[CustomPaginatedManager] Section ${this.currentSectionIndex} not loaded`
-      );
-      return;
-    }
-
-    if (!section.content) {
-      console.log(
-        `[CustomPaginatedManager] Section ${this.currentSectionIndex} has no content`
-      );
-      return;
-    }
-
-    if (!section.pages) {
-      console.log(
-        `[CustomPaginatedManager] Section ${this.currentSectionIndex} has no pages`
-      );
-      return;
-    }
-
-    const page = section.pages[this.currentPageIndex];
-    if (!page) {
-      console.log(
-        `[CustomPaginatedManager] No page found at index ${this.currentPageIndex} in section ${this.currentSectionIndex}`
-      );
-      console.log(
-        `[CustomPaginatedManager] Available pages: ${section.pages.length}`
-      );
-      return;
-    }
-
-    console.log(
-      `[CustomPaginatedManager] Displaying section ${this.currentSectionIndex}, page ${this.currentPageIndex}`
-    );
-
-    // Clear current content
-    this.pageContent.innerHTML = "";
-
-    // Clone section content
-    const contentClone = section.content.cloneNode(true);
-
-    // Debug logging
-    console.log(
-      `[CustomPaginatedManager] Content clone has ${contentClone.children.length} children`
-    );
-    console.log(
-      `[CustomPaginatedManager] Content clone innerHTML length: ${contentClone.innerHTML.length}`
-    );
-    console.log(
-      `[CustomPaginatedManager] Page content container:`,
-      this.pageContent
-    );
-
-    // Create page wrapper with column layout
-    const pageWrapper = document.createElement("div");
-    const isMobile = window.innerWidth <= 768;
-    const columnsPerPage = isMobile ? 1 : 2;
-    const availableWidth = this.pageWidth;
-    const columnWidth = isMobile
-      ? availableWidth
-      : Math.floor((availableWidth - this.options.columnGap) / columnsPerPage);
-
-    // Use vertical transforms for both mobile and desktop
-    // since we're now using vertical offsets for column content
-    const transform = `translateY(-${page.startOffset}px)`;
-
-    pageWrapper.style.cssText = `
-       width: 100%;
-       height: 100%;
-       overflow: hidden;
-       ${isMobile ? "" : `column-width: ${columnWidth}px;`}
-       column-count: ${columnsPerPage};
-       column-gap: ${this.options.columnGap}px;
-       column-fill: auto;
-       transform: ${transform};
-     `;
-
-    // Debug the transform offset
-    console.log(
-      `[CustomPaginatedManager] Page ${this.currentPageIndex} startOffset: ${page.startOffset}px`
-    );
-    console.log(`[CustomPaginatedManager] Transform: ${transform}`);
-
-    pageWrapper.appendChild(contentClone);
-    this.pageContent.appendChild(pageWrapper);
-
-    // Debug logging after adding content
-    console.log(`[CustomPaginatedManager] Page wrapper added to page content`);
-    console.log(
-      `[CustomPaginatedManager] Page content children count: ${this.pageContent.children.length}`
-    );
-    console.log(
-      `[CustomPaginatedManager] Page wrapper dimensions: ${pageWrapper.offsetWidth}x${pageWrapper.offsetHeight}`
-    );
-    console.log(
-      `[CustomPaginatedManager] Page content dimensions: ${this.pageContent.offsetWidth}x${this.pageContent.offsetHeight}`
-    );
-
-    // Force layout recalculation to ensure content is visible
-    this.pageContent.offsetHeight; // Force reflow
-    pageWrapper.offsetHeight; // Force reflow
-
-    // Update location and progress
-    this.updateGlobalPageIndex();
-    this.updateCurrentLocation();
-    this.updateReadingProgress();
-  }
-
-  nextPage() {
-    console.log("[CustomPaginatedManager] nextPage called");
-    const section = this.sections[this.currentSectionIndex];
-
-    console.log(
-      `[CustomPaginatedManager] Current section: ${this.currentSectionIndex}/${this.sections.length}`
-    );
-    console.log(
-      `[CustomPaginatedManager] Current page: ${this.currentPageIndex}/${
-        section.pages?.length || 0
-      }`
-    );
-    console.log(
-      `[CustomPaginatedManager] Section has pages: ${!!section.pages}, pages length: ${
-        section.pages?.length || 0
-      }`
-    );
-
-    if (!section.pages || section.pages.length === 0) {
-      console.log(
-        "[CustomPaginatedManager] Current section has no pages, trying to paginate"
-      );
-      this.paginateSection(this.currentSectionIndex).then(() => {
-        this.nextPage(); // Retry after pagination
-      });
-      return;
-    }
-
-    if (this.currentPageIndex < section.pages.length - 1) {
-      // Next page in current section
-      console.log(
-        `[CustomPaginatedManager] Moving to next page: ${
-          this.currentPageIndex + 1
-        }/${section.pages.length}`
-      );
-      this.currentPageIndex++;
-      this.displayCurrentPage();
-    } else if (this.currentSectionIndex < this.sections.length - 1) {
-      // Move to next section
-      console.log(
-        `[CustomPaginatedManager] Moving to next section: ${
-          this.currentSectionIndex + 1
-        }`
-      );
-      this.nextSection();
-    } else {
-      console.log("[CustomPaginatedManager] Already at last page");
-    }
-  }
-
-  prevPage() {
-    console.log("[CustomPaginatedManager] prevPage called");
-    if (this.currentPageIndex > 0) {
-      // Previous page in current section
-      console.log(
-        `[CustomPaginatedManager] Moving to previous page: ${
-          this.currentPageIndex - 1
-        }`
-      );
-      this.currentPageIndex--;
-      this.displayCurrentPage();
-    } else if (this.currentSectionIndex > 0) {
-      // Move to previous section
-      console.log(
-        `[CustomPaginatedManager] Moving to previous section: ${
-          this.currentSectionIndex - 1
-        }`
-      );
-      this.prevSection();
-    } else {
-      console.log("[CustomPaginatedManager] Already at first page");
-    }
-  }
-
-  async nextSection() {
-    if (this.currentSectionIndex >= this.sections.length - 1) return;
-
-    const nextSectionIndex = this.currentSectionIndex + 1;
-
-    console.log(
-      `[CustomPaginatedManager] nextSection: moving to section ${nextSectionIndex}`
-    );
-    console.log(
-      `[CustomPaginatedManager] Section ${nextSectionIndex} loaded: ${this.sections[nextSectionIndex].loaded}`
-    );
-    console.log(
-      `[CustomPaginatedManager] Section ${nextSectionIndex} has pages: ${!!this
-        .sections[nextSectionIndex].pages}`
-    );
-
-    // Load section if not already loaded
-    if (!this.sections[nextSectionIndex].loaded) {
-      await this.loadSection(nextSectionIndex);
-    }
-
-    // Always paginate the section (in case it was loaded but not paginated)
-    if (
-      !this.sections[nextSectionIndex].pages ||
-      this.sections[nextSectionIndex].pages.length === 0
-    ) {
-      console.log(
-        `[CustomPaginatedManager] Paginating section ${nextSectionIndex} (no pages or empty pages array)`
-      );
-      await this.paginateSection(nextSectionIndex);
-    }
-
-    this.currentSectionIndex = nextSectionIndex;
-    this.currentPageIndex = 0;
-
-    console.log(
-      `[CustomPaginatedManager] About to display section ${nextSectionIndex}, page 0`
-    );
-    console.log(
-      `[CustomPaginatedManager] Section pages length: ${
-        this.sections[nextSectionIndex].pages?.length || 0
-      }`
-    );
-
-    this.displayCurrentPage();
-
-    // Preload next section
-    if (nextSectionIndex + 1 < this.sections.length) {
-      this.loadSection(nextSectionIndex + 1);
-    }
-  }
-
-  async prevSection() {
-    if (this.currentSectionIndex <= 0) return;
-
-    const prevSectionIndex = this.currentSectionIndex - 1;
-
-    console.log(
-      `[CustomPaginatedManager] prevSection: moving to section ${prevSectionIndex}`
-    );
-    console.log(
-      `[CustomPaginatedManager] Section ${prevSectionIndex} loaded: ${this.sections[prevSectionIndex].loaded}`
-    );
-    console.log(
-      `[CustomPaginatedManager] Section ${prevSectionIndex} has pages: ${!!this
-        .sections[prevSectionIndex].pages}`
-    );
-
-    // Load section if not already loaded
-    if (!this.sections[prevSectionIndex].loaded) {
-      await this.loadSection(prevSectionIndex);
-    }
-
-    // Always paginate the section (in case it was loaded but not paginated)
-    if (
-      !this.sections[prevSectionIndex].pages ||
-      this.sections[prevSectionIndex].pages.length === 0
-    ) {
-      console.log(
-        `[CustomPaginatedManager] Paginating section ${prevSectionIndex} (no pages or empty pages array)`
-      );
-      await this.paginateSection(prevSectionIndex);
-    }
-
-    this.currentSectionIndex = prevSectionIndex;
-    const section = this.sections[prevSectionIndex];
-    this.currentPageIndex = Math.max(0, section.pages.length - 1);
-    this.displayCurrentPage();
-
-    // Preload previous section
-    if (prevSectionIndex - 1 >= 0) {
-      this.loadSection(prevSectionIndex - 1);
-    }
-  }
-
-  goToPage(globalPageIndex) {
-    if (globalPageIndex < 0 || globalPageIndex >= this.totalPages) return;
 
     // Find which section and page this global index corresponds to
     let currentGlobalIndex = 0;
+    let targetSection = null;
+    let targetPage = null;
 
-    for (
-      let sectionIndex = 0;
-      sectionIndex < this.sections.length;
-      sectionIndex++
-    ) {
-      const section = this.sections[sectionIndex];
-      if (!section.pages) continue;
-
+    for (const section of this.sections) {
       if (currentGlobalIndex + section.pages.length > globalPageIndex) {
-        // Found the section
-        const pageIndex = globalPageIndex - currentGlobalIndex;
-        this.goToSectionPage(sectionIndex, pageIndex);
-        return;
+        targetSection = section;
+        targetPage = section.pages[globalPageIndex - currentGlobalIndex];
+        this.currentSectionIndex = section.index;
+        this.currentPageIndex = globalPageIndex - currentGlobalIndex;
+        break;
       }
-
       currentGlobalIndex += section.pages.length;
     }
-  }
 
-  async goToSectionPage(sectionIndex, pageIndex) {
-    if (sectionIndex < 0 || sectionIndex >= this.sections.length) return;
-
-    // Load section if needed
-    if (!this.sections[sectionIndex].loaded) {
-      await this.loadSection(sectionIndex);
-      await this.paginateSection(sectionIndex);
+    if (!targetSection || !targetPage) {
+      console.error(
+        `[CustomPaginatedManager] Could not find page for index ${globalPageIndex}`
+      );
+      return;
     }
 
-    const section = this.sections[sectionIndex];
-    if (!section.pages || pageIndex >= section.pages.length) return;
+    console.log(
+      `[CustomPaginatedManager] Displaying page ${globalPageIndex + 1}/${
+        this.totalPages
+      } (Section ${targetSection.index}, Page ${targetPage.pageIndex})`
+    );
 
-    this.currentSectionIndex = sectionIndex;
-    this.currentPageIndex = Math.max(0, pageIndex);
-    this.displayCurrentPage();
+    // Clear container
+    this.container.innerHTML = "";
+
+    // Create page layout
+    this.createPageLayout(targetPage);
+
+    // Update location and progress
+    this.updateLocation(globalPageIndex);
   }
 
-  updateCurrentLocation() {
+  createPageLayout(page) {
+    const pageContainer = document.createElement("div");
+    pageContainer.style.cssText = `
+      width: 100%;
+      height: 100%;
+      display: flex;
+      gap: ${this.columnGap}px;
+    `;
+
+    if (this.isMobile || page.columns === 1) {
+      // Single column layout
+      const column = this.createColumn(page.elements);
+      pageContainer.appendChild(column);
+    } else {
+      // Two column layout
+      const halfElements = Math.ceil(page.elements.length / 2);
+      const leftElements = page.elements.slice(0, halfElements);
+      const rightElements = page.elements.slice(halfElements);
+
+      const leftColumn = this.createColumn(leftElements);
+      const rightColumn = this.createColumn(rightElements);
+
+      pageContainer.appendChild(leftColumn);
+      pageContainer.appendChild(rightColumn);
+    }
+
+    this.container.appendChild(pageContainer);
+  }
+
+  createColumn(elements) {
+    const column = document.createElement("div");
+    column.style.cssText = `
+      width: ${this.columnWidth}px;
+      height: ${this.pageContentHeight}px;
+      overflow: hidden;
+      font-family: ${this.fontFamily};
+      font-size: ${this.fontSize}em;
+      line-height: 1.6;
+      color: ${this.isDarkTheme ? "#fff" : "#000"};
+    `;
+
+    elements.forEach((element) => {
+      column.appendChild(element.cloneNode(true));
+    });
+
+    return column;
+  }
+
+  updateLocation(globalPageIndex) {
     const section = this.sections[this.currentSectionIndex];
-    if (!section) return;
+    const percentage = ((globalPageIndex + 1) / this.totalPages) * 100;
 
     const location = {
       index: this.currentSectionIndex,
-      href: section.href,
-      percentage:
-        this.totalPages > 0 ? this.currentPageGlobal / this.totalPages : 0,
+      href: section?.href || "",
+      percentage: Math.round(percentage),
       sectionIndex: this.currentSectionIndex,
       pageIndex: this.currentPageIndex,
-      globalPage: this.currentPageGlobal,
+      globalPage: globalPageIndex,
       totalPages: this.totalPages,
     };
 
-    if (this.onSectionChangeCallback) {
-      this.onSectionChangeCallback(location);
+    if (this.onLocationChange) {
+      this.onLocationChange(location);
+    }
+
+    if (this.onProgressChange) {
+      this.onProgressChange(percentage / 100);
     }
   }
 
-  updateReadingProgress() {
-    const progress =
-      this.totalPages > 0 ? this.currentPageGlobal / this.totalPages : 0;
-
-    if (this.onProgressChangeCallback) {
-      this.onProgressChangeCallback(progress);
-    }
-  }
-
-  getCurrentLocation() {
-    const section = this.sections[this.currentSectionIndex];
-    if (!section) return null;
-
-    return {
-      index: this.currentSectionIndex,
-      href: section.href,
-      percentage:
-        this.totalPages > 0 ? this.currentPageGlobal / this.totalPages : 0,
-      sectionIndex: this.currentSectionIndex,
-      pageIndex: this.currentPageIndex,
-      globalPage: this.currentPageGlobal,
-      totalPages: this.totalPages,
-    };
-  }
-
-  getReadingProgress() {
-    return this.totalPages > 0 ? this.currentPageGlobal / this.totalPages : 0;
-  }
-
-  // Navigation methods for external use
+  // Navigation methods
   next() {
-    this.nextPage();
+    const currentGlobalPage = this.getCurrentGlobalPage();
+    if (currentGlobalPage < this.totalPages - 1) {
+      this.goToPage(currentGlobalPage + 2); // +2 because goToPage expects 1-based index
+    }
   }
 
   prev() {
-    this.prevPage();
+    const currentGlobalPage = this.getCurrentGlobalPage();
+    if (currentGlobalPage > 0) {
+      this.goToPage(currentGlobalPage); // goToPage expects 1-based index
+    }
+  }
+
+  goToPage(pageNumber) {
+    const globalPageIndex = pageNumber - 1; // Convert to 0-based index
+    this.displayPage(globalPageIndex);
+  }
+
+  getCurrentGlobalPage() {
+    let globalIndex = 0;
+    for (let i = 0; i < this.currentSectionIndex; i++) {
+      globalIndex += this.sections[i].pages.length;
+    }
+    return globalIndex + this.currentPageIndex;
+  }
+
+  getCurrentLocation() {
+    const globalPageIndex = this.getCurrentGlobalPage();
+    const section = this.sections[this.currentSectionIndex];
+    const percentage = ((globalPageIndex + 1) / this.totalPages) * 100;
+
+    return {
+      index: this.currentSectionIndex,
+      href: section?.href || "",
+      percentage: Math.round(percentage),
+      sectionIndex: this.currentSectionIndex,
+      pageIndex: this.currentPageIndex,
+      globalPage: globalPageIndex,
+      totalPages: this.totalPages,
+    };
   }
 
   // Theme and font methods
   applyTheme(isDark) {
     this.isDarkTheme = isDark;
-    this.updatePageContentStyles();
 
-    // Re-apply theme to current content
-    if (this.pageContent) {
-      const content = this.pageContent.querySelector("div");
-      if (content) {
-        this.applyContentTheme(content);
-      }
+    if (this.container) {
+      this.container.style.background = isDark ? "#000" : "#fff";
+      this.container.style.color = isDark ? "#fff" : "#000";
     }
 
-    this.displayCurrentPage();
+    // Re-render current page with new theme
+    if (this.isInitialized) {
+      const currentGlobalPage = this.getCurrentGlobalPage();
+      this.displayPage(currentGlobalPage);
+    }
   }
 
   applyFontSettings(fontSize, fontFamily) {
-    this.userFontSize = fontSize;
-    this.userFontFamily = fontFamily;
-    this.updatePageContentStyles();
+    this.fontSize = fontSize;
+    this.fontFamily = fontFamily;
 
-    // Re-paginate current section with new font settings
-    if (this.sections[this.currentSectionIndex]?.loaded) {
-      this.paginateSection(this.currentSectionIndex);
-      this.displayCurrentPage();
+    // Re-paginate all sections with new font settings
+    if (this.isInitialized) {
+      console.log(
+        "[CustomPaginatedManager] Re-paginating with new font settings..."
+      );
+      this.repaginate();
     }
   }
 
-  // Navigation to specific locations
-  async navigateToHref(href) {
-    // Find section with matching href
-    const sectionIndex = this.sections.findIndex(
-      (section) => section.href === href || section.href.includes(href)
-    );
+  async repaginate() {
+    const currentLocation = this.getCurrentLocation();
+    const currentPercentage = currentLocation.percentage;
 
-    if (sectionIndex >= 0) {
-      await this.goToSectionPage(sectionIndex, 0);
+    // Re-process and paginate all sections
+    for (let i = 0; i < this.sections.length; i++) {
+      const section = this.sections[i];
+      if (section.content) {
+        this.applyContentStyles(section.content);
+        section.pages = await this.paginateSection(section.content, i);
+      }
     }
-  }
 
-  async navigateToSection(index) {
-    if (index >= 0 && index < this.sections.length) {
-      await this.goToSectionPage(index, 0);
-    }
-  }
+    // Recalculate total pages
+    this.calculateTotalPages();
 
-  // Progress restoration
-  setSavedProgress(progress) {
-    this.savedProgress = progress;
+    // Restore position based on percentage
+    const targetPage = Math.round((currentPercentage / 100) * this.totalPages);
+    this.goToPage(Math.max(1, targetPage));
   }
 
   async restoreProgress() {
@@ -1378,84 +623,44 @@ class CustomPaginatedManager {
       this.savedProgress
     );
 
-    let sectionIndex = 0;
-    let pageIndex = 0;
-
-    // Extract section index
-    if (this.savedProgress.sectionIndex !== undefined) {
-      sectionIndex = this.savedProgress.sectionIndex;
-    } else if (this.savedProgress.cfi) {
-      const match = this.savedProgress.cfi.match(/\/6\/(\d+)(?:\[[^\]]*\])?!/);
-      if (match) {
-        const spinePos = parseInt(match[1], 10);
-        sectionIndex = Math.floor((spinePos - 2) / 2);
-      }
-    }
-
-    // Extract page index from percentage
     if (this.savedProgress.percentage !== undefined) {
-      // Load the section first to get page count
-      if (!this.sections[sectionIndex].loaded) {
-        await this.loadSection(sectionIndex);
-        await this.paginateSection(sectionIndex);
-      }
-
-      const section = this.sections[sectionIndex];
-      if (section.pages && section.pages.length > 0) {
-        pageIndex = Math.floor(
-          (this.savedProgress.percentage / 100) * section.pages.length
-        );
-        pageIndex = Math.max(0, Math.min(pageIndex, section.pages.length - 1));
-      }
+      const targetPage = Math.round(
+        (this.savedProgress.percentage / 100) * this.totalPages
+      );
+      this.goToPage(Math.max(1, targetPage));
+    } else {
+      this.goToPage(1);
     }
-
-    await this.goToSectionPage(sectionIndex, pageIndex);
   }
 
-  // Event callbacks
-  onSectionChange(callback) {
-    this.onSectionChangeCallback = callback;
+  setupEventListeners() {
+    // Keyboard navigation
+    const handleKeyDown = (e) => {
+      switch (e.key) {
+        case "ArrowLeft":
+          e.preventDefault();
+          this.prev();
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          this.next();
+          break;
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Store reference for cleanup
+    this.keydownHandler = handleKeyDown;
   }
 
-  onProgressChange(callback) {
-    this.onProgressChangeCallback = callback;
-  }
-
-  // Cleanup
   destroy() {
-    window.removeEventListener("resize", this.onResize);
-    window.removeEventListener("keydown", this.onKeyDown);
+    if (this.keydownHandler) {
+      document.removeEventListener("keydown", this.keydownHandler);
+    }
 
     if (this.container) {
       this.container.innerHTML = "";
-    }
-
-    // Restore body scroll
-    document.body.style.overflow = "auto";
-  }
-
-  handleInternalLink(href) {
-    // Extract fragment identifier
-    const fragment = href.split("#")[1];
-    if (!fragment) return;
-
-    // Find element with matching id in current content
-    const targetElement = this.pageContent.querySelector(`#${fragment}`);
-    if (targetElement) {
-      // Calculate which page this element is on
-      const elementTop = targetElement.offsetTop;
-      const pageIndex = Math.floor(elementTop / this.pageHeight);
-
-      if (pageIndex !== this.currentPageIndex) {
-        this.currentPageIndex = Math.max(
-          0,
-          Math.min(
-            pageIndex,
-            this.sections[this.currentSectionIndex].pages.length - 1
-          )
-        );
-        this.displayCurrentPage();
-      }
     }
   }
 }
@@ -1469,32 +674,35 @@ export function useCustomPaginatedManager(book, rendition, options = {}) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  const managerRef = useRef(null);
+
   useEffect(() => {
     console.log("[useCustomPaginatedManager] Effect triggered:", {
       hasBook: !!book,
       hasSavedProgress: !!options.savedProgress,
     });
 
-    if (!book) return;
+    if (!book) {
+      setIsInitialized(false);
+      return;
+    }
 
-    const initializeManager = async () => {
+    const initManager = async () => {
       try {
         console.log(
           "[useCustomPaginatedManager] Initializing with book:",
           !!book
         );
 
-        // Wait a bit to ensure DOM is ready
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Clean up existing manager
+        if (managerRef.current) {
+          managerRef.current.destroy();
+        }
 
-        const paginatedManager = new CustomPaginatedManager(
-          book,
-          rendition,
-          options
-        );
+        const newManager = new CustomPaginatedManager(book, options);
 
-        // Set up event callbacks
-        paginatedManager.onSectionChange((location) => {
+        // Set up callbacks
+        newManager.onLocationChange = (location) => {
           console.log(
             "[useCustomPaginatedManager] Location changed:",
             location
@@ -1502,126 +710,118 @@ export function useCustomPaginatedManager(book, rendition, options = {}) {
           setCurrentLocation(location);
           setCurrentPage(location.globalPage + 1);
           setTotalPages(location.totalPages);
-        });
+        };
 
-        paginatedManager.onProgressChange((progress) => {
+        newManager.onProgressChange = (progress) => {
           console.log(
             "[useCustomPaginatedManager] Progress changed:",
             progress
           );
           setReadingProgress(progress);
-        });
+        };
 
-        // Set saved progress if available
-        if (options.savedProgress) {
-          paginatedManager.setSavedProgress(options.savedProgress);
+        const success = await newManager.init();
+
+        if (success) {
+          managerRef.current = newManager;
+          setManager(newManager);
+          setIsInitialized(true);
+          console.log(
+            "[useCustomPaginatedManager] Manager initialized successfully"
+          );
+        } else {
+          console.error(
+            "[useCustomPaginatedManager] Manager initialization failed"
+          );
         }
-
-        await paginatedManager.init();
-
-        setManager(paginatedManager);
-        setIsInitialized(true);
-
-        console.log(
-          "[useCustomPaginatedManager] Manager initialized successfully"
-        );
       } catch (error) {
         console.error(
-          "[useCustomPaginatedManager] Failed to initialize:",
+          "[useCustomPaginatedManager] Error initializing manager:",
           error
         );
-        setIsInitialized(false);
       }
     };
 
-    initializeManager();
+    initManager();
 
-    // Cleanup function
     return () => {
-      if (manager) {
-        manager.destroy();
+      if (managerRef.current) {
+        managerRef.current.destroy();
+        managerRef.current = null;
       }
-      setManager(null);
-      setIsInitialized(false);
-      setCurrentLocation(null);
-      setReadingProgress(0);
     };
-  }, [book, rendition]);
+  }, [book, options.savedProgress]);
 
-  // Navigation functions
-  const next = useCallback(() => {
-    if (manager) {
-      manager.next();
-    }
-  }, [manager]);
-
-  const prev = useCallback(() => {
-    if (manager) {
-      manager.prev();
-    }
-  }, [manager]);
-
-  const navigateToSection = useCallback(
-    (index) => {
-      if (manager) {
-        manager.navigateToSection(index);
+  const navigateToSection = useCallback((sectionIndex) => {
+    if (managerRef.current) {
+      // Find the first page of the target section
+      let globalPageIndex = 0;
+      for (
+        let i = 0;
+        i < sectionIndex && i < managerRef.current.sections.length;
+        i++
+      ) {
+        globalPageIndex += managerRef.current.sections[i].pages.length;
       }
-    },
-    [manager]
-  );
+      managerRef.current.goToPage(globalPageIndex + 1);
+    }
+  }, []);
 
   const navigateToHref = useCallback(
     (href) => {
-      if (manager) {
-        manager.navigateToHref(href);
+      if (managerRef.current) {
+        const sectionIndex = managerRef.current.sections.findIndex(
+          (s) => s.href === href
+        );
+        if (sectionIndex >= 0) {
+          navigateToSection(sectionIndex);
+        }
       }
     },
-    [manager]
+    [navigateToSection]
   );
 
-  const goToPage = useCallback(
-    (pageIndex) => {
-      if (manager) {
-        manager.goToPage(pageIndex - 1); // Convert from 1-based to 0-based
-      }
-    },
-    [manager]
-  );
-
-  // Theme and font functions
-  const applyTheme = useCallback(
-    (isDark) => {
-      if (manager) {
-        manager.applyTheme(isDark);
-      }
-    },
-    [manager]
-  );
-
-  const applyFontSettings = useCallback(
-    (fontSize, fontFamily) => {
-      if (manager) {
-        manager.applyFontSettings(fontSize, fontFamily);
-      }
-    },
-    [manager]
-  );
-
-  // Progress functions
-  const setSavedProgress = useCallback(
-    (progress) => {
-      if (manager) {
-        manager.setSavedProgress(progress);
-      }
-    },
-    [manager]
-  );
-
-  const restoreProgress = useCallback(() => {
-    if (manager) {
-      manager.restoreProgress();
+  const goToPage = useCallback((pageNumber) => {
+    if (managerRef.current) {
+      managerRef.current.goToPage(pageNumber);
     }
-  }, [manager]);
+  }, []);
+
+  const next = useCallback(() => {
+    if (managerRef.current) {
+      managerRef.current.next();
+    }
+  }, []);
+
+  const prev = useCallback(() => {
+    if (managerRef.current) {
+      managerRef.current.prev();
+    }
+  }, []);
+
+  const applyTheme = useCallback((isDark) => {
+    if (managerRef.current) {
+      managerRef.current.applyTheme(isDark);
+    }
+  }, []);
+
+  const applyFontSettings = useCallback((fontSize, fontFamily) => {
+    if (managerRef.current) {
+      managerRef.current.applyFontSettings(fontSize, fontFamily);
+    }
+  }, []);
+
+  const setSavedProgress = useCallback((progress) => {
+    if (managerRef.current) {
+      managerRef.current.savedProgress = progress;
+    }
+  }, []);
+
+  const restoreProgress = useCallback(async () => {
+    if (managerRef.current) {
+      await managerRef.current.restoreProgress();
+    }
+  }, []);
 
   return {
     manager,

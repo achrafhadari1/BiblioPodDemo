@@ -226,7 +226,7 @@ function EpubReader() {
     componentMounted && progressFetched && readingMode === "paginated" && book
       ? book
       : null,
-    null, // CustomPaginatedManager doesn't use rendition - it handles rendering itself
+    readingMode === "paginated" ? rendition : null,
     {
       preloadCount: 1,
       viewerRef: viewerRef,
@@ -2147,20 +2147,11 @@ function EpubReader() {
     }
 
     try {
-      // In scrolled or paginated mode, don't create a rendition - let the custom managers handle everything
+      // In scrolled mode, don't create a rendition - let the custom scroll manager handle everything
       console.log("[DEBUG] renderBook - readingMode:", readingMode);
       if (readingMode === "scrolled") {
         console.log(
           "[DEBUG] Scrolled mode detected - skipping rendition creation, custom scroll manager will handle rendering"
-        );
-        setBook(loadedBook);
-        setLoading(false);
-        return;
-      }
-
-      if (readingMode === "paginated") {
-        console.log(
-          "[DEBUG] Paginated mode detected - skipping rendition creation, custom paginated manager will handle rendering"
         );
         setBook(loadedBook);
         setLoading(false);

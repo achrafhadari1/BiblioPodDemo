@@ -16,26 +16,13 @@ class CustomPaginatedManager {
     this.container = null;
     this.viewerRef = options.viewerRef;
 
-    // Pagination settings
-    this.pageWidth = options.pageWidth || 1080;
-    this.pageHeight = options.pageHeight || 815;
+    // Responsive pagination settings
     this.columnGap = options.columnGap || 40;
-    this.padding = 40;
+    this.padding = 20;
     this.isMobile = window.innerWidth <= 768;
 
-    // Calculate column dimensions
-    const availableWidth = this.pageWidth - this.padding;
-    const availableHeight = this.pageHeight - this.padding;
-
-    if (this.isMobile) {
-      this.columnsPerPage = 1;
-      this.columnWidth = availableWidth;
-    } else {
-      this.columnsPerPage = 2;
-      this.columnWidth = Math.floor((availableWidth - this.columnGap) / 2);
-    }
-
-    this.pageContentHeight = availableHeight;
+    // Calculate responsive dimensions
+    this.updateDimensions();
 
     // Font settings
     this.fontSize = 1.0;
@@ -110,20 +97,55 @@ class CustomPaginatedManager {
     this.container = this.viewerRef.current;
     this.container.innerHTML = "";
 
-    // Set up container styles
+    // Update dimensions based on current viewport
+    this.updateDimensions();
+
+    // Set up responsive container styles
     this.container.style.cssText = `
-      width: ${this.pageWidth}px;
+      width: 100%;
+      max-width: ${this.pageWidth}px;
       height: ${this.pageHeight}px;
       overflow: hidden;
       position: relative;
       margin: 0 auto;
       background: ${this.isDarkTheme ? "#000" : "#fff"};
       color: ${this.isDarkTheme ? "#fff" : "#000"};
-      padding: ${this.padding / 2}px;
+      padding: ${this.padding}px;
       box-sizing: border-box;
     `;
 
     console.log("[CustomPaginatedManager] Container setup complete");
+  }
+
+  updateDimensions() {
+    // Get actual viewport dimensions
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Use most of the viewport, leaving minimal margin
+    this.pageWidth = Math.min(viewportWidth - 20, 1400); // Max width for readability
+    this.pageHeight = Math.max(viewportHeight - 80, 600); // Leave minimal space for header/footer, min 600px
+
+    // Update mobile detection
+    this.isMobile = viewportWidth <= 768;
+
+    // Calculate available space
+    const availableWidth = this.pageWidth - this.padding * 2;
+    const availableHeight = this.pageHeight - this.padding * 2;
+
+    if (this.isMobile) {
+      this.columnsPerPage = 1;
+      this.columnWidth = availableWidth;
+    } else {
+      this.columnsPerPage = 2;
+      this.columnWidth = Math.floor((availableWidth - this.columnGap) / 2);
+    }
+
+    this.pageContentHeight = availableHeight;
+
+    console.log(
+      `[CustomPaginatedManager] Updated dimensions: ${this.pageWidth}x${this.pageHeight}, columns: ${this.columnsPerPage}`
+    );
   }
 
   async loadAllSections() {
@@ -192,36 +214,301 @@ class CustomPaginatedManager {
   processSection(spineItem) {
     const content = spineItem.document.body.cloneNode(true);
 
-    // Process images
-    const images = content.querySelectorAll("img, image");
-    images.forEach((img) => this.processImage(img, spineItem));
-
     // Apply base styles
     this.applyContentStyles(content);
+
+    // Store spine item reference for later image processing
+    content.dataset.spineItemHref = spineItem.href;
 
     return content;
   }
 
   processImage(img, spineItem) {
-    const src =
+    // Get the source URL - handle both img src and SVG image xlink:href
+    const originalSrc =
       img.getAttribute("src") ||
       img.getAttribute("xlink:href") ||
       img.getAttribute("href");
-    if (!src) return;
 
-    // Skip if already processed
-    if (src.startsWith("blob:") || src.startsWith("data:")) return;
+    if (!originalSrc) return;
 
-    try {
-      // Get image from book archive
-      const imageUrl = this.book.archive.createUrl(src);
-      img.src = imageUrl;
-    } catch (error) {
-      console.warn(
-        `[CustomPaginatedManager] Failed to process image: ${src}`,
-        error
+    // Skip if already a blob or data URL
+    if (originalSrc.startsWith("blob:") || originalSrc.startsWith("data:")) {
+      console.log(
+        "[CustomPaginatedManager] Image already has blob or data URL, skipping conversion"
       );
+      return;
     }
+
+    console.log("[CustomPaginatedManager] Processing image:", originalSrc);
+
+    // For HTTP URLs, fetch directly
+    if (originalSrc.startsWith("http")) {
+      console.log(
+        "[CustomPaginatedManager] Fetching external image:",
+        originalSrc
+      );
+      this.fetchImageAsBlob(img, originalSrc);
+      return;
+    }
+
+    // Try to find the image in the book's resources first
+    if (this.tryBookResource(img, originalSrc)) {
+      return;
+    }
+
+    // For relative URLs, try multiple approaches
+    try {
+      // First try: Use epubjs archive methods
+      let blobPromise = null;
+
+      // Ensure the URL starts with a slash for epubjs archive
+      let archiveUrl = originalSrc;
+      if (!archiveUrl.startsWith("/")) {
+        archiveUrl = "/" + archiveUrl;
+      }
+
+      // Try different methods to get the blob
+      if (
+        this.book.archive &&
+        typeof this.book.archive.getBlob === "function"
+      ) {
+        blobPromise = this.book.archive.getBlob(archiveUrl);
+      } else if (
+        this.book.archive &&
+        typeof this.book.archive.request === "function"
+      ) {
+        blobPromise = this.book.archive.request(archiveUrl);
+      }
+
+      if (blobPromise) {
+        blobPromise
+          .then((blob) => {
+            if (blob) {
+              const blobUrl = URL.createObjectURL(blob);
+              console.log(
+                "[CustomPaginatedManager] Created blob URL for image:",
+                blobUrl
+              );
+
+              // Set the appropriate attribute based on element type
+              if (img.tagName.toLowerCase() === "img") {
+                img.src = blobUrl;
+              } else {
+                // For SVG image elements
+                img.setAttribute("xlink:href", blobUrl);
+                img.setAttribute("href", blobUrl);
+              }
+
+              // Store the blob URL for cleanup later
+              img.dataset.blobUrl = blobUrl;
+            } else {
+              console.warn(
+                "[CustomPaginatedManager] getBlob returned null/undefined for:",
+                archiveUrl
+              );
+              this.fallbackImageResolution(img, originalSrc);
+            }
+          })
+          .catch((error) => {
+            console.error(
+              "[CustomPaginatedManager] Error creating blob URL for image:",
+              error
+            );
+            this.fallbackImageResolution(img, originalSrc);
+          });
+      } else {
+        console.warn(
+          "[CustomPaginatedManager] No suitable blob method found, using resolve fallback"
+        );
+        this.fallbackImageResolution(img, originalSrc);
+      }
+    } catch (error) {
+      console.error("[CustomPaginatedManager] Error processing image:", error);
+      // Try our fallback method as a last resort
+      this.fallbackImageResolution(img, originalSrc);
+    }
+  }
+
+  // Try to find and use a resource from the book
+  tryBookResource(img, originalSrc) {
+    if (!this.book) {
+      return false;
+    }
+
+    // Extract filename for partial matching
+    const filename = originalSrc.split("/").pop();
+
+    // Try different variations of the path
+    const pathVariations = [
+      originalSrc,
+      originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc,
+      !originalSrc.startsWith("/") ? "/" + originalSrc : originalSrc,
+      "images/" +
+        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
+      "/images/" +
+        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
+      "Images/" +
+        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
+      "/Images/" +
+        (originalSrc.startsWith("/") ? originalSrc.substring(1) : originalSrc),
+      filename,
+      "images/" + filename,
+      "/images/" + filename,
+      "Images/" + filename,
+      "/Images/" + filename,
+    ];
+
+    // First try: Direct access to the book's archive using the URL
+    if (this.book.archive && typeof this.book.archive.getBlob === "function") {
+      for (const path of pathVariations) {
+        try {
+          const archiveUrl = path.startsWith("/") ? path : "/" + path;
+          console.log(
+            "[CustomPaginatedManager] Directly trying archive for:",
+            archiveUrl
+          );
+
+          // Get the blob directly from the archive
+          const blobPromise = this.book.archive.getBlob(archiveUrl);
+          if (blobPromise) {
+            // Handle the promise immediately without placeholder
+            blobPromise
+              .then((blob) => {
+                if (blob) {
+                  const blobUrl = URL.createObjectURL(blob);
+                  console.log(
+                    "[CustomPaginatedManager] Created blob URL directly from archive:",
+                    blobUrl
+                  );
+
+                  // Update all instances of this image in the current page
+                  this.updateImageInCurrentPage(img, blobUrl);
+
+                  // Store the blob URL for cleanup later
+                  img.dataset.blobUrl = blobUrl;
+                  return true;
+                }
+              })
+              .catch(() => {
+                // Silently fail and continue to next method
+              });
+
+            return true;
+          }
+        } catch (error) {
+          // Silently fail and continue to next path
+        }
+      }
+    }
+
+    return false;
+  }
+
+  // Update image in the currently displayed page
+  updateImageInCurrentPage(originalImg, blobUrl) {
+    if (!this.container) return;
+
+    // Get the original source to match against
+    const originalSrc =
+      originalImg.getAttribute("src") ||
+      originalImg.getAttribute("xlink:href") ||
+      originalImg.getAttribute("href");
+
+    if (!originalSrc) return;
+
+    // Update all matching images in the current page
+    const currentImages = this.container.querySelectorAll("img, image");
+    currentImages.forEach((img) => {
+      const imgSrc =
+        img.getAttribute("src") ||
+        img.getAttribute("xlink:href") ||
+        img.getAttribute("href");
+
+      // Check if this is the same image by comparing original sources
+      // Also check alt text or other attributes to ensure it's the same image
+      const imgAlt = img.getAttribute("alt") || "";
+      const originalAlt = originalImg.getAttribute("alt") || "";
+
+      const isSameImage =
+        imgSrc === originalSrc ||
+        (imgAlt && originalAlt && imgAlt === originalAlt) ||
+        img === originalImg;
+
+      if (isSameImage) {
+        if (img.tagName.toLowerCase() === "img") {
+          img.src = blobUrl;
+        } else {
+          img.setAttribute("xlink:href", blobUrl);
+          img.setAttribute("href", blobUrl);
+        }
+
+        img.dataset.blobUrl = blobUrl;
+        console.log(
+          "[CustomPaginatedManager] Updated image in current page with blob URL"
+        );
+      }
+    });
+  }
+
+  // Fallback image resolution method
+  fallbackImageResolution(img, originalSrc) {
+    console.log(
+      "[CustomPaginatedManager] Using fallback image resolution for:",
+      originalSrc
+    );
+
+    // Set a placeholder image to prevent broken image icons
+    if (img.tagName.toLowerCase() === "img") {
+      img.src =
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f0f0f0'/%3E%3Cpath d='M30,40 L70,40 L70,60 L30,60 Z' fill='%23ccc'/%3E%3Ctext x='50' y='55' font-family='Arial' font-size='10' text-anchor='middle' fill='%23999'%3EImage%3C/text%3E%3C/svg%3E";
+    }
+  }
+
+  // Helper method to fetch an image as a blob and set it as the source
+  fetchImageAsBlob(img, url) {
+    // Check if the URL is already a blob URL
+    if (url.startsWith("blob:")) {
+      if (img.tagName.toLowerCase() === "img") {
+        img.src = url;
+      } else {
+        img.setAttribute("xlink:href", url);
+        img.setAttribute("href", url);
+      }
+      return;
+    }
+
+    // Try to fetch the image and convert it to a blob URL
+    fetch(url)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch image: ${response.status} ${response.statusText}`
+          );
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        console.log(
+          "[CustomPaginatedManager] Created blob URL for image via fetch:",
+          blobUrl
+        );
+
+        if (img.tagName.toLowerCase() === "img") {
+          img.src = blobUrl;
+        } else {
+          img.setAttribute("xlink:href", blobUrl);
+          img.setAttribute("href", blobUrl);
+        }
+
+        // Store the blob URL for cleanup later
+        img.dataset.blobUrl = blobUrl;
+      })
+      .catch((error) => {
+        console.error("[CustomPaginatedManager] Error fetching image:", error);
+        this.fallbackImageResolution(img, originalSrc);
+      });
   }
 
   applyContentStyles(content) {
@@ -278,6 +565,9 @@ class CustomPaginatedManager {
       font-family: ${this.fontFamily};
       font-size: ${this.fontSize}em;
       line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
     `;
 
     document.body.appendChild(tempContainer);
@@ -329,23 +619,28 @@ class CustomPaginatedManager {
 
   getAllContentElements(container) {
     const elements = [];
-    const walker = document.createTreeWalker(
-      container,
-      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
-      {
-        acceptNode: (node) => {
-          // Skip empty text nodes
-          if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) {
-            return NodeFilter.FILTER_REJECT;
-          }
-          return NodeFilter.FILTER_ACCEPT;
-        },
-      }
-    );
 
-    let node;
-    while ((node = walker.nextNode())) {
-      elements.push(node.cloneNode(true));
+    // Process all child nodes (both elements and text nodes)
+    const childNodes = Array.from(container.childNodes);
+
+    for (const node of childNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        // It's an element - check if it has meaningful content
+        if (node.textContent.trim()) {
+          elements.push(node.cloneNode(true));
+        }
+      } else if (node.nodeType === Node.TEXT_NODE) {
+        // It's a text node - wrap it in a div if it has content
+        const textContent = node.textContent.trim();
+        if (textContent) {
+          const textDiv = document.createElement("div");
+          textDiv.textContent = textContent;
+          // Apply the same styling as other elements
+          textDiv.style.marginBottom = "1em";
+          textDiv.style.textAlign = "justify";
+          elements.push(textDiv);
+        }
+      }
     }
 
     return elements;
@@ -353,9 +648,11 @@ class CustomPaginatedManager {
 
   splitElementsIntoPages(elements, measureContainer) {
     const pages = [];
-    let currentPage = [];
-    let currentHeight = 0;
-    const maxHeight = this.pageContentHeight * (this.isMobile ? 1 : 2); // 2 columns worth of height
+    let currentPageElements = [];
+    let leftColumnHeight = 0;
+    let rightColumnHeight = 0;
+    // Use more of the available height - be less conservative
+    const maxColumnHeight = this.pageContentHeight - 10;
 
     for (const element of elements) {
       // Create a test container to measure this element
@@ -372,22 +669,44 @@ class CustomPaginatedManager {
       const elementHeight = testDiv.offsetHeight;
       measureContainer.removeChild(testDiv);
 
-      // Check if adding this element would exceed page height
-      if (currentHeight + elementHeight > maxHeight && currentPage.length > 0) {
-        // Start new page
-        pages.push([...currentPage]);
-        currentPage = [element];
-        currentHeight = elementHeight;
+      if (this.isMobile) {
+        // Mobile: single column, simple height check
+        if (
+          leftColumnHeight + elementHeight > maxColumnHeight &&
+          currentPageElements.length > 0
+        ) {
+          pages.push([...currentPageElements]);
+          currentPageElements = [{ element, column: "left" }];
+          leftColumnHeight = elementHeight;
+        } else {
+          currentPageElements.push({ element, column: "left" });
+          leftColumnHeight += elementHeight;
+        }
       } else {
-        // Add to current page
-        currentPage.push(element);
-        currentHeight += elementHeight;
+        // Desktop: two columns - STRICT left-to-right flow to preserve reading order
+        if (leftColumnHeight + elementHeight <= maxColumnHeight) {
+          // Fits in left column - always fill left first
+          currentPageElements.push({ element, column: "left" });
+          leftColumnHeight += elementHeight;
+        } else if (rightColumnHeight + elementHeight <= maxColumnHeight) {
+          // Left column full, try right column
+          currentPageElements.push({ element, column: "right" });
+          rightColumnHeight += elementHeight;
+        } else {
+          // Both columns full, start new page
+          if (currentPageElements.length > 0) {
+            pages.push([...currentPageElements]);
+          }
+          currentPageElements = [{ element, column: "left" }];
+          leftColumnHeight = elementHeight;
+          rightColumnHeight = 0;
+        }
       }
     }
 
     // Add the last page if it has content
-    if (currentPage.length > 0) {
-      pages.push(currentPage);
+    if (currentPageElements.length > 0) {
+      pages.push(currentPageElements);
     }
 
     return pages.length > 0 ? pages : [[]]; // Ensure at least one page
@@ -457,17 +776,33 @@ class CustomPaginatedManager {
       height: 100%;
       display: flex;
       gap: ${this.columnGap}px;
+      align-items: flex-start;
+      justify-content: ${this.isMobile ? "flex-start" : "space-between"};
     `;
 
-    if (this.isMobile || page.columns === 1) {
-      // Single column layout
-      const column = this.createColumn(page.elements);
+    // Handle different page formats consistently
+    const pageElements = Array.isArray(page) ? page : page.elements || [];
+
+    if (this.isMobile) {
+      // Mobile: single column layout
+      const elements = pageElements.map((item) => item.element || item);
+      const column = this.createColumn(elements);
       pageContainer.appendChild(column);
     } else {
-      // Two column layout
-      const halfElements = Math.ceil(page.elements.length / 2);
-      const leftElements = page.elements.slice(0, halfElements);
-      const rightElements = page.elements.slice(halfElements);
+      // Desktop: two column layout with strict left-to-right flow
+      const leftElements = [];
+      const rightElements = [];
+
+      pageElements.forEach((item) => {
+        const element = item.element || item;
+        const column = item.column || "left";
+
+        if (column === "left") {
+          leftElements.push(element);
+        } else {
+          rightElements.push(element);
+        }
+      });
 
       const leftColumn = this.createColumn(leftElements);
       const rightColumn = this.createColumn(rightElements);
@@ -483,19 +818,53 @@ class CustomPaginatedManager {
     const column = document.createElement("div");
     column.style.cssText = `
       width: ${this.columnWidth}px;
-      height: ${this.pageContentHeight}px;
+      min-height: ${this.pageContentHeight}px;
+      max-height: ${this.pageContentHeight}px;
       overflow: hidden;
-      font-family: ${this.fontFamily};
-      font-size: ${this.fontSize}em;
-      line-height: 1.6;
-      color: ${this.isDarkTheme ? "#fff" : "#000"};
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      flex: 1;
     `;
 
     elements.forEach((element) => {
-      column.appendChild(element.cloneNode(true));
+      const clonedElement = element.cloneNode(true);
+      // Ensure elements don't have excessive margins that could cause overflow
+      if (clonedElement.style) {
+        clonedElement.style.marginTop = clonedElement.style.marginTop || "0";
+        clonedElement.style.marginBottom =
+          clonedElement.style.marginBottom || "0.8em";
+      }
+
+      // Process images in this element when it's displayed
+      const images = clonedElement.querySelectorAll("img, image");
+      if (images.length > 0) {
+        // Find the spine item for this content
+        const spineItem = this.findSpineItemForElement(element);
+        if (spineItem) {
+          images.forEach((img) => {
+            // Process image asynchronously to avoid blocking rendering
+            setTimeout(() => this.processImage(img, spineItem), 0);
+          });
+        }
+      }
+
+      column.appendChild(clonedElement);
     });
 
     return column;
+  }
+
+  // Helper method to find the spine item for an element
+  findSpineItemForElement(element) {
+    // Try to find the spine item from the current section
+    const currentSection = this.sections[this.currentSectionIndex];
+    if (currentSection && currentSection.loaded) {
+      return this.book.spine.spineItems[currentSection.index];
+    }
+
+    // Fallback: return the first spine item
+    return this.book.spine.spineItems[0];
   }
 
   updateLocation(globalPageIndex) {
@@ -648,19 +1017,114 @@ class CustomPaginatedManager {
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
+    // Window resize handling
+    const handleResize = () => {
+      clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = setTimeout(() => {
+        console.log("[CustomPaginatedManager] Window resized, updating layout");
+        this.handleResize();
+      }, 250);
+    };
 
-    // Store reference for cleanup
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleResize);
+
+    // Store references for cleanup
     this.keydownHandler = handleKeyDown;
+    this.resizeHandler = handleResize;
+  }
+
+  async handleResize() {
+    const oldPageWidth = this.pageWidth;
+    const oldPageHeight = this.pageHeight;
+    const oldColumnsPerPage = this.columnsPerPage;
+
+    // Update dimensions
+    this.updateDimensions();
+
+    // Check if significant changes occurred
+    const dimensionsChanged =
+      Math.abs(oldPageWidth - this.pageWidth) > 50 ||
+      Math.abs(oldPageHeight - this.pageHeight) > 50 ||
+      oldColumnsPerPage !== this.columnsPerPage;
+
+    if (dimensionsChanged) {
+      // Update container
+      this.setupContainer();
+
+      // Re-paginate all content with new dimensions
+      await this.repaginate();
+    }
+  }
+
+  async repaginate() {
+    console.log("[CustomPaginatedManager] Re-paginating with new dimensions");
+
+    // Store current position
+    const currentGlobalPage = this.currentGlobalPageIndex;
+
+    // Clear existing pagination
+    this.sections.forEach((section) => {
+      section.pages = null;
+    });
+
+    // Re-paginate all sections
+    for (let i = 0; i < this.sections.length; i++) {
+      if (this.sections[i].loaded) {
+        const pages = await this.paginateSection(this.sections[i].content, i);
+        this.sections[i].pages = pages;
+      }
+    }
+
+    // Update total pages
+    this.updateTotalPages();
+
+    // Try to maintain current position (or go to closest page)
+    const targetPage = Math.min(currentGlobalPage, this.totalPages - 1);
+    this.goToPage(targetPage);
+
+    console.log(
+      `[CustomPaginatedManager] Re-pagination complete. New total pages: ${this.totalPages}`
+    );
   }
 
   destroy() {
-    if (this.keydownHandler) {
-      document.removeEventListener("keydown", this.keydownHandler);
-    }
+    try {
+      // Clean up blob URLs to prevent memory leaks
+      if (this.container) {
+        const images = this.container.querySelectorAll("img[data-blob-url]");
+        if (images && images.length > 0) {
+          images.forEach((img) => {
+            if (img && img.dataset && img.dataset.blobUrl) {
+              try {
+                URL.revokeObjectURL(img.dataset.blobUrl);
+              } catch (e) {
+                console.error("Error revoking blob URL:", e);
+              }
+            }
+          });
+        }
+      }
 
-    if (this.container) {
-      this.container.innerHTML = "";
+      // Clean up event listeners
+      if (this.keydownHandler) {
+        document.removeEventListener("keydown", this.keydownHandler);
+      }
+
+      if (this.resizeHandler) {
+        window.removeEventListener("resize", this.resizeHandler);
+      }
+
+      // Clear resize timeout
+      if (this.resizeTimeout) {
+        clearTimeout(this.resizeTimeout);
+      }
+
+      if (this.container) {
+        this.container.innerHTML = "";
+      }
+    } catch (error) {
+      console.error("[CustomPaginatedManager] Error during cleanup:", error);
     }
   }
 }

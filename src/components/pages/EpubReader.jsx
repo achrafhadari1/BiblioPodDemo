@@ -4361,7 +4361,7 @@ function EpubReader() {
         }
 
         // Try to restore progress if we have a current location and the scroll manager is ready
-        if (restoreProgress) {
+        if (scrollRestoreProgress) {
           console.log(
             "[READING_MODE] Attempting to restore progress in scroll manager"
           );
@@ -4433,14 +4433,14 @@ function EpubReader() {
                 await new Promise((resolve) => setTimeout(resolve, 300));
 
                 // Then restore the progress within that section
-                await restoreProgress();
+                await scrollRestoreProgress();
               } catch (navError) {
                 console.error(
                   "[READING_MODE] Error navigating to section:",
                   navError
                 );
                 // Fallback to regular restore
-                await restoreProgress();
+                await scrollRestoreProgress();
               }
             } else {
               // Now restore the progress using the standard method
@@ -4540,7 +4540,9 @@ function EpubReader() {
             currentCFI={currentCFI}
             currentChapter={currentChapter}
             setIsNavigatingToChapter={setIsNavigatingToChapter}
-            onChapterSelect={readingMode === "scrolled" ? navigateToHref : null}
+            onChapterSelect={
+              readingMode === "scrolled" ? scrollNavigateToHref : null
+            }
           />
         </div>
 
@@ -4563,7 +4565,7 @@ function EpubReader() {
               currentChapter={currentChapter}
               setIsNavigatingToChapter={setIsNavigatingToChapter}
               onChapterSelect={
-                readingMode === "scrolled" ? navigateToHref : null
+                readingMode === "scrolled" ? scrollNavigateToHref : null
               }
             />
           </div>

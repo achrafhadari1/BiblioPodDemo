@@ -114,7 +114,9 @@ export const useFileUploadImproved = (user, fetchBooks) => {
   };
 
   const fetchBookDetails = async (title, author, language, userId) => {
-    const urlApi = `https://www.googleapis.com/books/v1/volumes?q=intitle:${title}+inauthor:${author}&printType=books&langRestrict=en`;
+    const urlApi = `https://www.googleapis.com/books/v1/volumes?q=intitle:${title}+inauthor:${author}&printType=books&langRestrict=en&key=${
+    process.env.NEXT_PUBLIC_GOOGLE_BOOKS_KEY
+  }`;
 
     try {
       const response = await axios.get(urlApi);

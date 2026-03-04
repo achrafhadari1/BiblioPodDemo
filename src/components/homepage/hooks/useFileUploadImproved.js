@@ -16,7 +16,7 @@ export const useFileUploadImproved = (user, fetchBooks) => {
       setStorageUsage(usage);
       return usage;
     } catch (error) {
-      console.error('Error getting storage usage:', error);
+      console.error("Error getting storage usage:", error);
       return null;
     }
   };
@@ -42,7 +42,7 @@ export const useFileUploadImproved = (user, fetchBooks) => {
         genre: bookDetails.genre,
         publisher: bookDetails.publisher,
         language: bookDetails.language,
-        progress: 0
+        progress: 0,
       };
 
       // Store book in IndexedDB (much more efficient than localStorage)
@@ -58,26 +58,30 @@ export const useFileUploadImproved = (user, fetchBooks) => {
 
         return { success: true, data: result.data };
       } else {
-        throw new Error('Failed to store book');
+        throw new Error("Failed to store book");
       }
     } catch (error) {
       console.error("Error storing book:", error);
-      
+
       // Handle different types of errors
-      if (error.message.includes('quota') || error.name === 'QuotaExceededError') {
+      if (
+        error.message.includes("quota") ||
+        error.name === "QuotaExceededError"
+      ) {
         const usage = await updateStorageUsage();
         toast("Storage limit exceeded", {
-          description: usage 
+          description: usage
             ? `Storage is full (${usage.used}/${usage.available}). Please delete some books to make space.`
             : "Your browser's storage is full. Please delete some books to make space.",
         });
-      } else if (error.message.includes('Invalid file')) {
+      } else if (error.message.includes("Invalid file")) {
         toast("Invalid file format", {
           description: "Please select a valid ePub file.",
         });
       } else {
         toast("Upload failed", {
-          description: "An error occurred while storing the book. Please try again.",
+          description:
+            "An error occurred while storing the book. Please try again.",
         });
       }
 
@@ -114,7 +118,7 @@ export const useFileUploadImproved = (user, fetchBooks) => {
   };
 
   const fetchBookDetails = async (title, author, language, userId) => {
-    const urlApi = `https://www.googleapis.com/books/v1/volumes?q=intitle:${title}+inauthor:${author}&printType=books&langRestrict=en`;
+    const urlApi = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}&printType=books&langRestrict=en&key=${process.env.NEXT_PUBLIC_GOOGLE_BOOKS_KEY}`;
 
     try {
       const response = await axios.get(urlApi);
@@ -147,7 +151,7 @@ export const useFileUploadImproved = (user, fetchBooks) => {
 
     if (files.length > 0) {
       setUploadLoading(true);
-      
+
       try {
         // Check available storage before processing files
         const usage = await updateStorageUsage();
@@ -162,7 +166,7 @@ export const useFileUploadImproved = (user, fetchBooks) => {
         // Calculate approximate file sizes
         const totalFileSize = files.reduce((sum, file) => sum + file.size, 0);
         const estimatedSizeMB = (totalFileSize / (1024 * 1024)).toFixed(1);
-        
+
         if (files.length > 1) {
           toast(`Processing ${files.length} books`, {
             description: `Total size: ~${estimatedSizeMB}MB. This may take a moment...`,
@@ -178,7 +182,7 @@ export const useFileUploadImproved = (user, fetchBooks) => {
             bookInfo.title,
             bookInfo.author,
             bookInfo.language,
-            user.id
+            user.id,
           );
           const combinedDetails = {
             title: bookInfo.title || "Unknown Title",
@@ -196,17 +200,17 @@ export const useFileUploadImproved = (user, fetchBooks) => {
           updatedFileDetails.map((bookDetails, index) => {
             const singleFile = files[index];
             return storeBook(bookDetails, singleFile);
-          })
+          }),
         );
 
         // Count successful and failed uploads
         const successfulUploads = uploadResults.filter(
-          (result) => result.status === "fulfilled" && result.value.success
+          (result) => result.status === "fulfilled" && result.value.success,
         ).length;
         const failedUploads = uploadResults.filter(
           (result) =>
             result.status === "rejected" ||
-            (result.status === "fulfilled" && !result.value.success)
+            (result.status === "fulfilled" && !result.value.success),
         ).length;
 
         // Show summary toast if multiple files were uploaded
@@ -253,7 +257,7 @@ export const useFileUploadImproved = (user, fetchBooks) => {
     try {
       return await bookStorageDB.getBookFile(isbn);
     } catch (error) {
-      console.error('Error retrieving book file:', error);
+      console.error("Error retrieving book file:", error);
       return null;
     }
   };
@@ -271,7 +275,7 @@ export const useFileUploadImproved = (user, fetchBooks) => {
       }
       return success;
     } catch (error) {
-      console.error('Error deleting book:', error);
+      console.error("Error deleting book:", error);
       toast("Delete failed", {
         description: "Failed to delete the book. Please try again.",
       });
